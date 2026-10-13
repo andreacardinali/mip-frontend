@@ -1,5 +1,7 @@
 import axios from "axios";
 
-export default axios.create({
-  baseURL: "/api",
+const api = axios.create({
+  baseURL: "http://mip.internal:8000/api",
 });
+
+export default api;
