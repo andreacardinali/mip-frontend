@@ -10,6 +10,8 @@ import PortfolioPage from "./pages/PortfolioPage";
 import NewsPage from "./pages/NewsPage";
 import CatalystsPage from "./pages/CatalystsPage";
 import SettingsPage from "./pages/SettingsPage";
+import WatchlistDetailsPage from "./pages/WatchlistDetailsPage";
+import PortfolioDetailsPage from "./pages/PortfolioDetailsPage";
 
 export default function App() {
   return (
@@ -43,6 +45,15 @@ export default function App() {
         <Route
           path="/settings"
           element={<SettingsPage />}
+        />
+        <Route
+          path="/watchlists/:id"
+          element={<WatchlistDetailsPage />}
+        />
+
+        <Route
+          path="/portfolios/:id"
+          element={<PortfolioDetailsPage />}
         />
       </Routes>
     </BrowserRouter>

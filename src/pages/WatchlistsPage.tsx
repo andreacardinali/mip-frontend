@@ -15,43 +15,52 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  IconButton,
 } from "@mui/material";
 
-import { DataGrid } from "@mui/x-data-grid";
+import HomeIcon from "@mui/icons-material/Home";
+import DeleteIcon
+  from "@mui/icons-material/Delete";
 
-import type { GridColDef } from "@mui/x-data-grid";
+import OpenInNewIcon
+  from "@mui/icons-material/OpenInNew";
+
+import {
+  DataGrid,
+} from "@mui/x-data-grid";
+
+import type {
+  GridColDef,
+} from "@mui/x-data-grid";
 
 import api from "../api/api";
 
-import type { Watchlist } from "../types/watchlist";
+import type {
+  Watchlist,
+} from "../types/watchlist";
 
-const columns: GridColDef[] = [
-  {
-    field: "name",
-    headerName: "Name",
-    flex: 1,
-  },
-  {
-    field: "description",
-    headerName: "Description",
-    flex: 2,
-  },
-  {
-    field: "created_at",
-    headerName: "Created",
-    flex: 1,
-  },
-];
+import {
+  useNavigate,
+} from "react-router-dom";
 
 export default function WatchlistsPage() {
-  const queryClient = useQueryClient();
 
-  const [open, setOpen] = useState(false);
+  const queryClient =
+    useQueryClient();
 
-  const [name, setName] = useState("");
+  const navigate =
+    useNavigate();
 
-  const [description, setDescription] =
+  const [open, setOpen] =
+    useState(false);
+
+  const [name, setName] =
     useState("");
+
+  const [
+    description,
+    setDescription,
+  ] = useState("");
 
   const {
     data = [],
@@ -60,45 +69,168 @@ export default function WatchlistsPage() {
   } = useQuery<Watchlist[]>({
     queryKey: ["watchlists"],
     queryFn: async () => {
+
       const response =
-        await api.get("/watchlists");
+        await api.get(
+          "/watchlists"
+        );
 
       return response.data;
     },
   });
 
-  const createWatchlist = async () => {
-    await api.post("/watchlists", {
-      name,
-      description,
-    });
+  const createWatchlist =
+    async () => {
 
-    await queryClient.invalidateQueries({
-      queryKey: ["watchlists"],
-    });
+      await api.post(
+        "/watchlists",
+        {
+          name,
+          description,
+        },
+      );
 
-    setOpen(false);
+      await queryClient.invalidateQueries(
+        {
+          queryKey: [
+            "watchlists",
+          ],
+        },
+      );
 
-    setName("");
-    setDescription("");
-  };
+      setOpen(false);
+
+      setName("");
+      setDescription("");
+    };
+
+  const deleteWatchlist =
+    async (
+      watchlistId: string
+    ) => {
+
+      if (
+        !window.confirm(
+          "Delete watchlist?"
+        )
+      ) {
+        return;
+      }
+
+      await api.delete(
+        `/watchlists/${watchlistId}`,
+      );
+
+      await queryClient.invalidateQueries(
+        {
+          queryKey: [
+            "watchlists",
+          ],
+        },
+      );
+    };
+
+  const columns: GridColDef[] =
+    [
+      {
+        field: "name",
+        headerName: "Name",
+        flex: 1,
+      },
+      {
+        field: "description",
+        headerName:
+          "Description",
+        flex: 2,
+      },
+      {
+        field: "created_at",
+        headerName:
+          "Created",
+        flex: 1,
+      },
+      {
+        field: "open",
+        headerName:
+          "Open",
+        width: 90,
+
+        sortable: false,
+
+        renderCell:
+          (params) => (
+            <IconButton
+              onClick={(e) => {
+
+                e.stopPropagation();
+
+                navigate(
+                  `/watchlists/${params.row.watchlist_id}`
+                );
+              }}
+            >
+              <OpenInNewIcon />
+            </IconButton>
+          ),
+      },
+      {
+        field: "delete",
+        headerName:
+          "Delete",
+        width: 90,
+
+        sortable: false,
+
+        renderCell:
+          (params) => (
+            <IconButton
+              color="error"
+              onClick={(e) => {
+
+                e.stopPropagation();
+
+                deleteWatchlist(
+                  params.row.watchlist_id
+                );
+              }}
+            >
+              <DeleteIcon />
+            </IconButton>
+          ),
+      },
+    ];
 
   return (
     <>
       <Box
+          <Button
+            startIcon={<HomeIcon />}
+            onClick={() => navigate("/")}
+          >
+            Home
+          </Button>
         sx={{
           display: "flex",
           justifyContent:
             "space-between",
-          alignItems: "center",
+          alignItems:
+            "center",
           mb: 2,
         }}
       >
-        <Typography variant="h4">
+        <Typography
+          variant="h4"
+        >
           Watchlists
         </Typography>
 
         <Box
+          <Button
+            startIcon={<HomeIcon />}
+            onClick={() => navigate("/")}
+          >
+            Home
+          </Button>
           sx={{
             display: "flex",
             gap: 2,
@@ -106,7 +238,9 @@ export default function WatchlistsPage() {
         >
           <Button
             variant="outlined"
-            onClick={() => refetch()}
+            onClick={() =>
+              refetch()
+            }
           >
             Refresh
           </Button>
@@ -122,13 +256,26 @@ export default function WatchlistsPage() {
         </Box>
       </Box>
 
-      <Paper sx={{ height: 600 }}>
+      <Paper
+        sx={{
+          height: 650,
+        }}
+      >
         <DataGrid
           rows={data}
           columns={columns}
-          loading={isLoading}
+          loading={
+            isLoading
+          }
           getRowId={(row) =>
             row.watchlist_id
+          }
+          onRowClick={(
+            params
+          ) =>
+            navigate(
+              `/watchlists/${params.row.watchlist_id}`
+            )
           }
         />
       </Paper>
@@ -146,6 +293,7 @@ export default function WatchlistsPage() {
         </DialogTitle>
 
         <DialogContent>
+
           <TextField
             fullWidth
             margin="normal"
@@ -162,16 +310,20 @@ export default function WatchlistsPage() {
             fullWidth
             margin="normal"
             label="Description"
-            value={description}
+            value={
+              description
+            }
             onChange={(e) =>
               setDescription(
                 e.target.value
               )
             }
           />
+
         </DialogContent>
 
         <DialogActions>
+
           <Button
             onClick={() =>
               setOpen(false)
@@ -188,8 +340,10 @@ export default function WatchlistsPage() {
           >
             Create
           </Button>
+
         </DialogActions>
       </Dialog>
+
     </>
   );
 }
