@@ -21,8 +21,7 @@ import {
 } from "@mui/material";
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import DeleteIcon
-  from "@mui/icons-material/Delete";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 import {
   DataGrid,
@@ -47,11 +46,16 @@ export default function PortfolioDetailsPage() {
   const { id } =
     useParams();
 
-  const queryClient =
-    useQueryClient();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [open, setOpen] =
     useState(false);
+
+  const [
+    editingPosition,
+    setEditingPosition,
+  ] = useState<any>(null);
 
   const [
     instrument,
@@ -105,48 +109,44 @@ export default function PortfolioDetailsPage() {
 
   async function handleSave() {
 
-    if (!instrument) {
-      return;
-    }
+    let instrumentId;
 
-    const imported =
-      await importSymbol(
-        instrument.symbol
-      );
+    if (editingPosition) {
 
-    console.log(
-      "Selected instrument",
-      instrument
-    );
+      instrumentId =
+        editingPosition.instrument_id;
 
-    console.log(
-      "Import result",
-      imported
-    );
-    if (
-      !imported ||
-      !imported.instrument_id
-    ) {
+    } else {
 
-      console.error(
-        "Import failed",
-        imported
-      );
+      if (!instrument) {
+        return;
+      }
 
-      alert(
-        imported?.error ??
-        "Unable to import instrument"
-      );
+      const imported =
+        await importSymbol(
+          instrument.symbol
+        );
 
-      return;
+      if (
+        !imported ||
+        !imported.instrument_id
+      ) {
+        return;
+      }
+
+      instrumentId =
+        imported.instrument_id;
     }
 
     await savePosition({
+      position_id:
+        editingPosition?.position_id,
+
       portfolio_id:
         id!,
 
       instrument_id:
-        imported.instrument_id,
+        instrumentId,
 
       quantity,
 
@@ -161,8 +161,8 @@ export default function PortfolioDetailsPage() {
       ],
     });
 
+    setEditingPosition(null);
     setOpen(false);
-    setSearchText("");
   }
 
   async function handleDelete(
@@ -189,6 +189,27 @@ export default function PortfolioDetailsPage() {
     });
   }
 
+  const portfolioTotals: Record<string, number> =
+    data.reduce(
+      (
+        acc: Record<string, number>,
+        row: any
+      ) => {
+        const currency =
+          row.currency_code ??
+          "N/A";
+
+        acc[currency] =
+          (acc[currency] ?? 0) +
+          Number(
+            row.market_value ?? 0
+          );
+
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
   return (
     <Box sx={{ p: 3 }}>
 
@@ -200,21 +221,72 @@ export default function PortfolioDetailsPage() {
           mb: 2,
         }}
       >
-        <Typography
-          variant="h4"
-        >
-          Portfolio Details
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate("/portfolios")}
+          >
+            Portfolios
+          </Button>
+
+          <Typography variant="h4">
+            Portfolio Details
+          </Typography>
+        </Box>
 
         <Button
           variant="contained"
-          onClick={() =>
-            setOpen(true)
-          }
+          onClick={() => {
+            setEditingPosition(null);
+            setInstrument(null);
+            setQuantity(0);
+            setAvgPrice(0);
+            setOpen(true);
+          }}
         >
           Add Position
         </Button>
       </Box>
+
+      <Paper
+        sx={{
+          p: 2,
+          mb: 2,
+        }}
+      >
+        <Typography
+          variant="h6"
+        >
+          Portfolio Value
+        </Typography>
+
+        {Object.entries(
+          portfolioTotals
+        ).map(
+          ([currency, value]) => (
+            <Typography
+              key={currency}
+            >
+              {currency}:{" "}
+              {Number(value).toLocaleString(
+                undefined,
+                {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                }
+              )}
+            </Typography>
+          )
+        )}
+
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ mt: 1 }}
+        >
+          Positions: {data.length}
+        </Typography>
+      </Paper>
 
       <Paper sx={{ height: 700 }}>
         <DataGrid
@@ -240,9 +312,69 @@ export default function PortfolioDetailsPage() {
               flex: 1,
             },
             {
+              field: "currency_code",
+              headerName: "Currency",
+              width: 90,
+            },
+            {
               field: "avg_price",
               headerName: "Avg Price",
               flex: 1,
+            },
+            {
+              field: "last_price",
+              headerName: "Current",
+              flex: 1,
+            },
+            {
+              field: "market_value",
+              headerName: "Value",
+              flex: 1,
+            },
+            {
+              field: "profit_loss",
+              headerName: "P/L",
+              flex: 1,
+            },
+            {
+              field: "profit_loss_pct",
+              headerName: "P/L %",
+              flex: 1,
+            },
+            {
+              field: "edit",
+              headerName: "Edit",
+              width: 90,
+
+              renderCell:
+                (params) => (
+                  <IconButton
+                    color="primary"
+                    onClick={() => {
+
+                      setEditingPosition(
+                        params.row
+                      );
+
+                      setQuantity(
+                        Number(
+                          params.row.quantity
+                        )
+                      );
+
+                      setAvgPrice(
+                        Number(
+                          params.row.avg_price
+                        )
+                      );
+
+                      setOpen(true);
+
+                    }}
+                  >
+                    ✏️
+                  </IconButton>
+                ),
             },
             {
               field: "delete",
@@ -274,53 +406,57 @@ export default function PortfolioDetailsPage() {
         }
       >
         <DialogTitle>
-          Add Position
+          {
+            editingPosition
+              ? "Edit Position"
+              : "Add Position"
+          }
         </DialogTitle>
 
         <DialogContent>
 
-          <Autocomplete
-            options={
-              searchResults?.results
-              ?? []
-            }
-
-            getOptionLabel={
-              (option: any) =>
-                `${option.symbol} - ${option.name}`
-            }
-
-            inputValue={
-              searchText
-            }
-
-            onInputChange={
-              (_, value) =>
-                setSearchText(
-                  value
-                )
-            }
-
-            onChange={
-              (_, value) =>
-                setInstrument(
-                  value
-                )
-            }
-
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Search Symbol"
+          {
+            !editingPosition && (
+              <Autocomplete
+                options={
+                  searchResults?.results
+                  ?? []
+                }
+                getOptionLabel={
+                  (option: any) =>
+                    `${option.symbol} - ${option.name}`
+                }
+                inputValue={
+                  searchText
+                }
+                onInputChange={
+                  (_, value) =>
+                    setSearchText(
+                      value
+                    )
+                }
+                onChange={
+                  (_, value) =>
+                    setInstrument(
+                      value
+                    )
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Search Symbol"
+                  />
+                )}
               />
-            )}
-          />
+            )
+          }
 
           <TextField
             fullWidth
             margin="normal"
             label="Quantity"
             type="number"
+            value={quantity}
             onChange={(e) =>
               setQuantity(
                 Number(
@@ -335,6 +471,7 @@ export default function PortfolioDetailsPage() {
             margin="normal"
             label="Average Price"
             type="number"
+            value={avgPrice}
             onChange={(e) =>
               setAvgPrice(
                 Number(

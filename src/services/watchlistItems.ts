@@ -13,6 +13,7 @@ export async function getWatchlistItems(
 
 export async function saveWatchlistItem(
   payload: {
+    watchlist_item_id?: string;
     watchlist_id: string;
     entity_id: string;
     priority?: number;

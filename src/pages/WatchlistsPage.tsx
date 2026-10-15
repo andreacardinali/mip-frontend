@@ -203,53 +203,40 @@ export default function WatchlistsPage() {
   return (
     <>
       <Box
-          <Button
-            startIcon={<HomeIcon />}
-            onClick={() => navigate("/")}
-          >
-            Home
-          </Button>
         sx={{
           display: "flex",
-          justifyContent:
-            "space-between",
-          alignItems:
-            "center",
+          justifyContent: "space-between",
+          alignItems: "center",
           mb: 2,
         }}
       >
-        <Typography
-          variant="h4"
-        >
+        <Typography variant="h4">
           Watchlists
         </Typography>
 
         <Box
-          <Button
-            startIcon={<HomeIcon />}
-            onClick={() => navigate("/")}
-          >
-            Home
-          </Button>
           sx={{
             display: "flex",
             gap: 2,
           }}
         >
           <Button
+            startIcon={<HomeIcon />}
+            onClick={() => navigate("/")}
+          >
+            Home
+          </Button>
+
+          <Button
             variant="outlined"
-            onClick={() =>
-              refetch()
-            }
+            onClick={() => refetch()}
           >
             Refresh
           </Button>
 
           <Button
             variant="contained"
-            onClick={() =>
-              setOpen(true)
-            }
+            onClick={() => setOpen(true)}
           >
             New Watchlist
           </Button>

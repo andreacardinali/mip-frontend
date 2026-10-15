@@ -21,11 +21,14 @@ import {
 } from "@mui/material";
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import DeleteIcon
-  from "@mui/icons-material/Delete";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 import {
   DataGrid,
+} from "@mui/x-data-grid";
+
+import type {
+  GridRowModel,
 } from "@mui/x-data-grid";
 
 import {
@@ -45,10 +48,10 @@ import {
 export default function WatchlistDetailsPage() {
 
   const { id } = useParams();
-  const navigate = useNavigate();
 
-  const queryClient =
-    useQueryClient();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+    
 
   const [open, setOpen] =
     useState(false);
@@ -144,6 +147,33 @@ export default function WatchlistDetailsPage() {
     });
   }
 
+  async function handleUpdateItem(
+    row: GridRowModel
+  ) {
+
+    await saveWatchlistItem({
+      watchlist_item_id:
+        row.watchlist_item_id,
+
+      watchlist_id:
+        row.watchlist_id,
+
+      entity_id:
+        row.entity_id,
+
+      priority:
+        row.priority,
+
+      target_price:
+        row.target_price,
+
+      notes:
+        row.notes,
+    });
+
+    return row;
+  }
+
   return (
     <Box sx={{ p: 3 }}>
 
@@ -155,11 +185,18 @@ export default function WatchlistDetailsPage() {
           mb: 2,
         }}
       >
-        <Typography
-          variant="h4"
-        >
-          Watchlist Details
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate("/watchlists")}
+          >
+            Watchlists
+          </Button>
+
+          <Typography variant="h4">
+            Watchlist Details
+          </Typography>
+        </Box>
 
         <Button
           variant="contained"
@@ -175,6 +212,9 @@ export default function WatchlistDetailsPage() {
         <DataGrid
           rows={data}
           loading={isLoading}
+          processRowUpdate={
+            handleUpdateItem
+          }
           getRowId={(row) =>
             row.watchlist_item_id
           }
@@ -193,10 +233,22 @@ export default function WatchlistDetailsPage() {
               field: "priority",
               headerName: "Priority",
               flex: 1,
+              editable: true,
+            },
+            {
+              field: "currency_code",
+              headerName: "Currency",
+              width: 90,
+              editable: true,
             },
             {
               field: "target_price",
               headerName: "Target",
+              flex: 1,
+            },
+            {
+              field: "last_price",
+              headerName: "Current",
               flex: 1,
             },
             {

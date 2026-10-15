@@ -13,6 +13,7 @@ export async function getPositions(
 
 export async function savePosition(
   payload: {
+    position_id?: string;
     portfolio_id: string;
     instrument_id: string;
     quantity: number;
