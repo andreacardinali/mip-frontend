@@ -34,6 +34,10 @@ import {
 } from "../services/positions";
 
 import {
+  getPortfolioSummary,
+} from "../services/portfolios";
+
+import {
   searchAssets,
 } from "../services/search";
 
@@ -105,6 +109,20 @@ export default function PortfolioDetailsPage() {
 
     enabled:
       searchText.length >= 2,
+  });
+
+  const {
+    data: summary,
+  } = useQuery({
+    queryKey: [
+      "portfolio-summary",
+      id,
+    ],
+
+    queryFn: () =>
+      getPortfolioSummary(
+        id!
+      ),
   });
 
   async function handleSave() {
@@ -189,27 +207,6 @@ export default function PortfolioDetailsPage() {
     });
   }
 
-  const portfolioTotals: Record<string, number> =
-    data.reduce(
-      (
-        acc: Record<string, number>,
-        row: any
-      ) => {
-        const currency =
-          row.currency_code ??
-          "N/A";
-
-        acc[currency] =
-          (acc[currency] ?? 0) +
-          Number(
-            row.market_value ?? 0
-          );
-
-        return acc;
-      },
-      {} as Record<string, number>
-    );
-
   return (
     <Box sx={{ p: 3 }}>
 
@@ -254,37 +251,50 @@ export default function PortfolioDetailsPage() {
           mb: 2,
         }}
       >
-        <Typography
-          variant="h6"
-        >
+        <Typography variant="h6">
           Portfolio Value
         </Typography>
 
-        {Object.entries(
-          portfolioTotals
-        ).map(
-          ([currency, value]) => (
-            <Typography
-              key={currency}
-            >
-              {currency}:{" "}
-              {Number(value).toLocaleString(
-                undefined,
-                {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }
-              )}
-            </Typography>
-          )
-        )}
+        <Typography>
+          Portfolio Currency:
+          {" "}
+          {summary?.portfolio_currency}
+        </Typography>
+
+        <Typography>
+          Reporting Currency:
+          {" "}
+          {summary?.reporting_currency}
+        </Typography>
+
+        <Typography sx={{ mt: 1 }}>
+          Native Value:
+          {" "}
+          {Number(
+            summary?.portfolio_value_native ?? 0
+          ).toLocaleString()}
+          {" "}
+          {summary?.portfolio_currency}
+        </Typography>
+
+        <Typography>
+          Reporting Value:
+          {" "}
+          {Number(
+            summary?.portfolio_value_reporting ?? 0
+          ).toLocaleString()}
+          {" "}
+          {summary?.reporting_currency}
+        </Typography>
 
         <Typography
           variant="body2"
           color="text.secondary"
           sx={{ mt: 1 }}
         >
-          Positions: {data.length}
+          Positions:
+          {" "}
+          {summary?.positions_count ?? 0}
         </Typography>
       </Paper>
 

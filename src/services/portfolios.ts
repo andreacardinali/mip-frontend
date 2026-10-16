@@ -33,3 +33,16 @@ export async function deletePortfolio(
 
   return response.data;
 }
+
+export async function getPortfolioSummary(
+  portfolioId: string
+) {
+
+  const response =
+    await api.get(
+      `/portfolios/${portfolioId}/summary`
+    );
+
+  return response.data;
+
+}
