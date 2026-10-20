@@ -17,6 +17,7 @@ const queryClient = new QueryClient();
 import {
   AuthProvider,
 } from "./contexts/AuthProvider";
+import { PriceRefreshProvider } from "./contexts/PriceRefreshProvider";
 
 createRoot(
   document.getElementById("root")!,
@@ -24,7 +25,9 @@ createRoot(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <App />
+        <PriceRefreshProvider>
+          <App />
+        </PriceRefreshProvider>
       </AuthProvider>
     </QueryClientProvider>
   </StrictMode>

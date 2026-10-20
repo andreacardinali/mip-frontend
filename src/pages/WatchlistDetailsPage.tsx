@@ -335,7 +335,30 @@ export default function WatchlistDetailsPage() {
             {
               field: "last_price",
               headerName: "Current",
-              flex: 1,
+              flex: 1.35,
+              renderCell: (params) => {
+                if (params.value !== null && params.value !== undefined) {
+                  return params.value;
+                }
+
+                const status = params.row.price_refresh_status;
+                const active = ["PENDING", "PROCESSING", "RETRY"].includes(status);
+
+                return (
+                  <Chip
+                    size="small"
+                    color={active ? "warning" : "default"}
+                    variant={active ? "filled" : "outlined"}
+                    label={
+                      active
+                        ? "Prezzo in aggiornamento"
+                        : status === "FAILED"
+                          ? "Prezzo non disponibile"
+                          : "Nessun prezzo"
+                    }
+                  />
+                );
+              },
             },
             {
               field: "delete",
