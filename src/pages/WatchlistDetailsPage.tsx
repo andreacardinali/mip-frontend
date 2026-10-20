@@ -66,6 +66,22 @@ function assetKey(asset: AssetSearchResult) {
   ].join("|");
 }
 
+function formatPrice(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "-";
+  }
+
+  return number.toLocaleString("it-IT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default function WatchlistDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -218,15 +234,36 @@ export default function WatchlistDetailsPage() {
           columns={[
             { field: "symbol", headerName: "Symbol", flex: 1 },
             { field: "name", headerName: "Company", flex: 2 },
-            { field: "priority", headerName: "Priority", flex: 1, editable: true },
-            { field: "currency_code", headerName: "Currency", width: 90 },
-            { field: "target_price", headerName: "Target", flex: 1 },
+            {
+              field: "priority",
+              headerName: "Priority",
+              type: "number",
+              width: 100,
+              editable: true,
+              description: "Priority from 1 (highest) to 5 (lowest)",
+            },
+            {
+              field: "currency_code",
+              headerName: "Currency",
+              width: 100,
+              renderCell: (params) => params.value ? String(params.value).trim() : "-",
+            },
+            {
+              field: "target_price",
+              headerName: "Target",
+              type: "number",
+              flex: 1,
+              editable: true,
+              renderCell: (params) => formatPrice(params.value),
+            },
             {
               field: "last_price",
               headerName: "Current",
               flex: 1.35,
               renderCell: (params) => {
-                if (params.value !== null && params.value !== undefined) return params.value;
+                if (params.value !== null && params.value !== undefined) {
+                  return formatPrice(params.value);
+                }
                 const status = params.row.price_refresh_status;
                 const active = ["PENDING", "PROCESSING", "RETRY"].includes(status);
                 return (
