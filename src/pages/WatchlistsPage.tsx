@@ -83,10 +83,11 @@ export default function WatchlistsPage() {
     async () => {
 
       await api.post(
-        "/watchlists",
+        "/watchlists/upsert",
         {
-          name,
-          description,
+          watchlist_id: null,
+          name: name.trim(),
+          description: description.trim() || null,
         },
       );
 
