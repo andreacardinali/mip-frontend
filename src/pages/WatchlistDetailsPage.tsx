@@ -58,6 +58,7 @@ type AssetSearchResult = {
   currency_code?: string | null;
   type?: string | null;
   instrument_type?: string | null;
+  data_source?: string | null;
 };
 
 function assetExchange(asset: AssetSearchResult) {
@@ -134,12 +135,32 @@ export default function WatchlistDetailsPage() {
 
     setIsAdding(true);
 
+    const batchStartedAt = performance.now();
+
+    console.groupCollapsed(
+      `[MIP watchlist] START batch of ${entities.length} instruments`
+    );
+    console.table(
+      entities.map((item, index) => ({
+        index: index + 1,
+        symbol: item.symbol,
+        dataSource:
+          item.data_source ?? "YAHOO",
+      }))
+    );
+    console.groupEnd();
+
     try {
-      for (const selectedEntity of entities) {
+      for (const [index, selectedEntity] of entities.entries()) {
+        console.info(
+          `[MIP watchlist] Importing ${index + 1}/${entities.length}: ${selectedEntity.symbol}`
+        );
         const imported =
-          await importSymbol(
-            selectedEntity.symbol
-          );
+          await importSymbol({
+            symbol: selectedEntity.symbol,
+            data_source:
+              selectedEntity.data_source,
+          });
 
         await saveWatchlistItem({
           watchlist_id: id,
@@ -155,9 +176,36 @@ export default function WatchlistDetailsPage() {
         ],
       });
 
+      const batchDurationMs = Math.round(
+        performance.now() - batchStartedAt
+      );
+
+      console.info(
+        `[MIP watchlist] Batch completed in ${batchDurationMs} ms`,
+        {
+          count: entities.length,
+          durationMs: batchDurationMs,
+        }
+      );
+
       setOpen(false);
       setEntities([]);
       setSearchText("");
+    } catch (error) {
+      const batchDurationMs = Math.round(
+        performance.now() - batchStartedAt
+      );
+
+      console.error(
+        `[MIP watchlist] Batch stopped after ${batchDurationMs} ms`,
+        {
+          count: entities.length,
+          durationMs: batchDurationMs,
+          error,
+        }
+      );
+
+      throw error;
     } finally {
       setIsAdding(false);
     }
