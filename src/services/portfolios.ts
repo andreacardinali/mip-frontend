@@ -2,6 +2,7 @@ import api from "../api/api";
 
 import type {
   Portfolio,
+  PortfolioSummary,
   PortfolioUpsertRequest,
 } from "../types/portfolio";
 
@@ -10,14 +11,8 @@ export async function getPortfolios(): Promise<Portfolio[]> {
   return response.data;
 }
 
-export async function savePortfolio(
-  payload: PortfolioUpsertRequest,
-) {
-  const response = await api.post(
-    "/portfolios/upsert",
-    payload,
-  );
-
+export async function savePortfolio(payload: PortfolioUpsertRequest) {
+  const response = await api.post("/portfolios/upsert", payload);
   return response.data;
 }
 
@@ -34,22 +29,14 @@ export async function createPortfolio(
   });
 }
 
-export async function deletePortfolio(
-  portfolioId: string,
-) {
-  const response = await api.delete(
-    `/portfolios/${portfolioId}`,
-  );
-
+export async function deletePortfolio(portfolioId: string) {
+  const response = await api.delete(`/portfolios/${portfolioId}`);
   return response.data;
 }
 
 export async function getPortfolioSummary(
   portfolioId: string,
-) {
-  const response = await api.get(
-    `/portfolios/${portfolioId}/summary`,
-  );
-
+): Promise<PortfolioSummary> {
+  const response = await api.get(`/portfolios/${portfolioId}/summary`);
   return response.data;
 }

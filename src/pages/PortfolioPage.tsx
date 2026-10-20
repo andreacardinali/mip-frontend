@@ -19,28 +19,57 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import {
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef } from "@mui/x-data-grid";
 
-import {
-  getPortfolios,
-  savePortfolio,
-} from "../services/portfolios";
 import CurrencySelect from "../components/CurrencySelect";
+import { getPortfolios, savePortfolio } from "../services/portfolios";
 import type { Portfolio } from "../types/portfolio";
 
+function numericValue(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatMoney(value: unknown, currency?: string | null) {
+  const number = numericValue(value);
+  if (number === null) return "N/D";
+  return `${number.toLocaleString("it-IT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currency ?? ""}`.trim();
+}
+
+function formatSignedMoney(value: unknown, currency?: string | null) {
+  const number = numericValue(value);
+  if (number === null) return "N/D";
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${formatMoney(number, currency)}`;
+}
+
+function formatSignedPercent(value: unknown) {
+  const number = numericValue(value);
+  if (number === null) return "N/D";
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${number.toLocaleString("it-IT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
+}
+
+function pnlColor(value: unknown) {
+  const number = numericValue(value);
+  if (number === null || number === 0) return "text.secondary";
+  return number > 0 ? "success.main" : "error.main";
+}
 
 export default function PortfolioPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const [open, setOpen] = useState(false);
-  const [editingPortfolio, setEditingPortfolio] =
-    useState<Portfolio | null>(null);
+  const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [portfolioType, setPortfolioType] = useState("PORTFOLIO");
@@ -48,11 +77,7 @@ export default function PortfolioPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const {
-    data = [],
-    isLoading,
-    refetch,
-  } = useQuery<Portfolio[]>({
+  const { data = [], isLoading, refetch } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"],
     queryFn: getPortfolios,
   });
@@ -76,9 +101,7 @@ export default function PortfolioPage() {
     setName(portfolio.name);
     setDescription(portfolio.description ?? "");
     setPortfolioType(portfolio.portfolio_type ?? "PORTFOLIO");
-    setBaseCurrency(
-      (portfolio.base_currency ?? "EUR").toUpperCase(),
-    );
+    setBaseCurrency((portfolio.base_currency ?? "EUR").toUpperCase());
     setSaveError(null);
     setOpen(true);
   }
@@ -92,14 +115,10 @@ export default function PortfolioPage() {
   async function handleSave() {
     const normalizedName = name.trim();
     const normalizedCurrency = baseCurrency.trim().toUpperCase();
-
-    if (!normalizedName || normalizedCurrency.length !== 3 || isSaving) {
-      return;
-    }
+    if (!normalizedName || normalizedCurrency.length !== 3 || isSaving) return;
 
     setIsSaving(true);
     setSaveError(null);
-
     try {
       await savePortfolio({
         portfolio_id: editingPortfolio?.portfolio_id,
@@ -113,14 +132,10 @@ export default function PortfolioPage() {
         queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
         editingPortfolio
           ? queryClient.invalidateQueries({
-              queryKey: [
-                "portfolio-summary",
-                editingPortfolio.portfolio_id,
-              ],
+              queryKey: ["portfolio-summary", editingPortfolio.portfolio_id],
             })
           : Promise.resolve(),
       ]);
-
       setOpen(false);
       resetDialog();
     } catch (error) {
@@ -132,31 +147,74 @@ export default function PortfolioPage() {
   }
 
   const columns: GridColDef<Portfolio>[] = [
-    {
-      field: "name",
-      headerName: "Name",
-      flex: 1,
-    },
-    {
-      field: "description",
-      headerName: "Description",
-      flex: 2,
-    },
-    {
-      field: "portfolio_type",
-      headerName: "Type",
-      flex: 1,
-    },
+    { field: "name", headerName: "Name", minWidth: 170, flex: 1 },
+    { field: "portfolio_type", headerName: "Type", width: 120 },
     {
       field: "base_currency",
       headerName: "Currency",
-      width: 110,
+      width: 95,
       valueGetter: (_, row) => row.base_currency ?? "EUR",
+    },
+    {
+      field: "portfolio_value",
+      headerName: "Value",
+      minWidth: 150,
+      flex: 1,
+      sortable: true,
+      renderCell: ({ row }) => formatMoney(row.portfolio_value, row.base_currency),
+    },
+    {
+      field: "invested_value",
+      headerName: "Invested",
+      minWidth: 150,
+      flex: 1,
+      renderCell: ({ row }) => formatMoney(row.invested_value, row.base_currency),
+    },
+    {
+      field: "profit_loss",
+      headerName: "P/L",
+      minWidth: 150,
+      flex: 1,
+      renderCell: ({ row }) => (
+        <Typography
+          component="span"
+          sx={{
+            display: "inline-flex",
+            alignItems: "center",
+            height: "100%",
+            color: pnlColor(row.profit_loss),
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          {formatSignedMoney(row.profit_loss, row.base_currency)}
+        </Typography>
+      ),
+    },
+    {
+      field: "profit_loss_pct",
+      headerName: "P/L %",
+      width: 115,
+      renderCell: ({ row }) => (
+        <Typography
+          component="span"
+          sx={{
+            display: "inline-flex",
+            alignItems: "center",
+            height: "100%",
+            color: pnlColor(row.profit_loss_pct),
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          {formatSignedPercent(row.profit_loss_pct)}
+        </Typography>
+      ),
     },
     {
       field: "edit",
       headerName: "Edit",
-      width: 80,
+      width: 70,
       sortable: false,
       filterable: false,
       renderCell: (params) => (
@@ -175,7 +233,7 @@ export default function PortfolioPage() {
     {
       field: "open",
       headerName: "Open",
-      width: 80,
+      width: 70,
       sortable: false,
       filterable: false,
       renderCell: (params) => (
@@ -192,44 +250,18 @@ export default function PortfolioPage() {
     },
   ];
 
-  const currencyValid = baseCurrency.trim().length === 3;
-  const canSave = Boolean(name.trim()) && currencyValid && !isSaving;
+  const canSave = Boolean(name.trim())
+    && baseCurrency.trim().length === 3
+    && !isSaving;
 
   return (
     <>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 2,
-        }}
-      >
-        <Typography variant="h4">
-          Portfolios
-        </Typography>
-
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Typography variant="h4">Portfolios</Typography>
         <Stack direction="row" spacing={2}>
-          <Button
-            startIcon={<HomeIcon />}
-            onClick={() => navigate("/")}
-          >
-            Home
-          </Button>
-
-          <Button
-            variant="outlined"
-            onClick={() => void refetch()}
-          >
-            Refresh
-          </Button>
-
-          <Button
-            variant="contained"
-            onClick={openCreateDialog}
-          >
-            New Portfolio
-          </Button>
+          <Button startIcon={<HomeIcon />} onClick={() => navigate("/")}>Home</Button>
+          <Button variant="outlined" onClick={() => void refetch()}>Refresh</Button>
+          <Button variant="contained" onClick={openCreateDialog}>New Portfolio</Button>
         </Stack>
       </Box>
 
@@ -239,103 +271,48 @@ export default function PortfolioPage() {
           columns={columns}
           loading={isLoading}
           getRowId={(row) => row.portfolio_id}
-          onRowClick={(params) =>
-            navigate(`/portfolios/${params.row.portfolio_id}`)
-          }
+          onRowClick={(params) => navigate(`/portfolios/${params.row.portfolio_id}`)}
         />
       </Paper>
 
-      <Dialog
-        open={open}
-        onClose={closeDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <Box
-          component="form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleSave();
-          }}
-        >
-          <DialogTitle>
-            {editingPortfolio ? "Edit Portfolio" : "Create Portfolio"}
-          </DialogTitle>
-
+      <Dialog open={open} onClose={closeDialog} maxWidth="sm" fullWidth>
+        <Box component="form" onSubmit={(event) => { event.preventDefault(); void handleSave(); }}>
+          <DialogTitle>{editingPortfolio ? "Edit Portfolio" : "Create Portfolio"}</DialogTitle>
           <DialogContent dividers>
             <Stack spacing={2.25} sx={{ pt: 0.5 }}>
-              {saveError && (
-                <Alert severity="error">
-                  {saveError}
-                </Alert>
-              )}
-
+              {saveError && <Alert severity="error">{saveError}</Alert>}
               <TextField
-                fullWidth
-                required
-                autoFocus
-                label="Name"
-                value={name}
-                disabled={isSaving}
+                fullWidth required autoFocus label="Name" value={name} disabled={isSaving}
                 onChange={(event) => setName(event.target.value)}
               />
-
               <TextField
-                fullWidth
-                label="Description"
-                value={description}
-                disabled={isSaving}
-                multiline
-                minRows={3}
-                onChange={(event) => setDescription(event.target.value)}
+                fullWidth label="Description" value={description} disabled={isSaving}
+                multiline minRows={3} onChange={(event) => setDescription(event.target.value)}
               />
-
               <TextField
-                select
-                fullWidth
-                label="Type"
-                value={portfolioType}
-                disabled={isSaving}
+                select fullWidth label="Type" value={portfolioType} disabled={isSaving}
                 onChange={(event) => setPortfolioType(event.target.value)}
               >
                 <MenuItem value="PORTFOLIO">Portfolio</MenuItem>
                 <MenuItem value="BENCHMARK">Benchmark</MenuItem>
                 <MenuItem value="MODEL">Model</MenuItem>
               </TextField>
-
               <CurrencySelect
                 required
                 label="Portfolio currency"
                 value={baseCurrency}
                 disabled={isSaving}
-                helperText={
-                  editingPortfolio
-                    ? "Changing this currency recalculates the portfolio native value without changing positions."
-                    : "Currency used for the portfolio native value."
-                }
+                helperText={editingPortfolio
+                  ? "Changing this currency recalculates the portfolio native value without changing positions."
+                  : "Currency used for the portfolio native value."}
                 onChange={setBaseCurrency}
               />
             </Stack>
           </DialogContent>
-
           <DialogActions sx={{ px: 3, py: 2 }}>
-            <Button
-              onClick={closeDialog}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={!canSave}
-            >
-              {isSaving
-                ? "Saving..."
-                : editingPortfolio
-                  ? "Save Changes"
-                  : "Create"}
+            <Button onClick={closeDialog} disabled={isSaving}>Cancel</Button>
+            <Button type="submit" variant="contained" disabled={!canSave}>
+              {isSaving ? "Saving..." : editingPortfolio ? "Save Changes" : "Create"}
             </Button>
           </DialogActions>
         </Box>

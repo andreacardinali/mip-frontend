@@ -91,6 +91,30 @@ function formatMoney(value: unknown) {
       })
     : "0,00";
 }
+
+function formatSignedMoney(value: unknown) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "N/D";
+  return `${number > 0 ? "+" : ""}${formatMoney(number)}`;
+}
+
+function formatSignedPercent(value: unknown) {
+  if (value === null || value === undefined || value === "") return "N/D";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "N/D";
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${number.toLocaleString("it-IT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
+}
+
+function pnlColor(value: unknown) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return "text.secondary";
+  return number > 0 ? "success.main" : "error.main";
+}
+
 export default function PortfolioDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -274,17 +298,68 @@ export default function PortfolioDetailsPage() {
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="h6">Portfolio Value</Typography>
-        <Typography>Portfolio Currency: {summary?.portfolio_currency}</Typography>
-        <Typography>Reporting Currency: {summary?.reporting_currency}</Typography>
-        <Typography sx={{ mt: 1 }}>
-          Native Value: {formatMoney(summary?.portfolio_value_native)} {summary?.portfolio_currency}
-        </Typography>
-        <Typography>
-          Reporting Value: {formatMoney(summary?.portfolio_value_reporting)} {summary?.reporting_currency}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Positions: {summary?.positions_count ?? 0}
-        </Typography>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={4}
+          useFlexGap
+          sx={{ mt: 2, flexWrap: "wrap" }}
+        >
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Invested value
+            </Typography>
+            <Typography variant="h6">
+              {formatMoney(summary?.invested_value_native)} {summary?.portfolio_currency}
+            </Typography>
+          </Box>
+
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Current value
+            </Typography>
+            <Typography variant="h6">
+              {formatMoney(summary?.portfolio_value_native)} {summary?.portfolio_currency}
+            </Typography>
+          </Box>
+
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Profit / Loss
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{
+                color: pnlColor(summary?.profit_loss_native),
+                fontWeight: 700,
+              }}
+            >
+              {formatSignedMoney(summary?.profit_loss_native)} {summary?.portfolio_currency}
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                color: pnlColor(summary?.profit_loss_pct),
+                fontWeight: 700,
+              }}
+            >
+              {formatSignedPercent(summary?.profit_loss_pct)}
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Divider sx={{ my: 2 }} />
+
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={3}>
+          <Typography variant="body2" color="text.secondary">
+            Reporting value: {formatMoney(summary?.portfolio_value_reporting)} {summary?.reporting_currency}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Reporting P/L: {formatSignedMoney(summary?.profit_loss_reporting)} {summary?.reporting_currency}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Positions: {summary?.positions_count ?? 0}
+          </Typography>
+        </Stack>
       </Paper>
 
       <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: "center" }}>
