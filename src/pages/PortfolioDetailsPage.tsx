@@ -82,6 +82,15 @@ function formatNumber(value: unknown) {
   return Number.isFinite(number) ? number.toLocaleString() : String(value);
 }
 
+function formatMoney(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number)
+    ? number.toLocaleString("it-IT", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : "0,00";
+}
 export default function PortfolioDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -268,10 +277,10 @@ export default function PortfolioDetailsPage() {
         <Typography>Portfolio Currency: {summary?.portfolio_currency}</Typography>
         <Typography>Reporting Currency: {summary?.reporting_currency}</Typography>
         <Typography sx={{ mt: 1 }}>
-          Native Value: {formatNumber(summary?.portfolio_value_native ?? 0)} {summary?.portfolio_currency}
+          Native Value: {formatMoney(summary?.portfolio_value_native)} {summary?.portfolio_currency}
         </Typography>
         <Typography>
-          Reporting Value: {formatNumber(summary?.portfolio_value_reporting ?? 0)} {summary?.reporting_currency}
+          Reporting Value: {formatMoney(summary?.portfolio_value_reporting)} {summary?.reporting_currency}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           Positions: {summary?.positions_count ?? 0}
