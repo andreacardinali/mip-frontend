@@ -103,7 +103,7 @@ export default function WatchlistDetailsPage() {
 
   const selectedRowIds = rowSelectionModel.type === "exclude"
     ? data
-        .map((row: any) => String(row.watchlist_item_id))
+        .map((row: GridRowModel) => String(row.watchlist_item_id))
         .filter((rowId: string) => !rowSelectionModel.ids.has(rowId))
     : Array.from(rowSelectionModel.ids).map(String);
 

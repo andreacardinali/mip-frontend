@@ -139,7 +139,7 @@ export default function PortfolioDetailsPage() {
 
   const selectedRowIds = rowSelectionModel.type === "exclude"
     ? data
-        .map((row: any) => String(row.position_id))
+        .map((row: PositionRow) => String(row.position_id))
         .filter((rowId: string) => !rowSelectionModel.ids.has(rowId))
     : Array.from(rowSelectionModel.ids).map(String);
 

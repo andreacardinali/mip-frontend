@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import SaveIcon from "@mui/icons-material/Save";
 import {
@@ -18,20 +18,18 @@ import { useAuth } from "../contexts/AuthProvider";
 import CurrencySelect from "../components/CurrencySelect";
 import { updateAccountPreferences } from "../services/auth";
 
-
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { user, refreshUser } = useAuth();
-  const [reportingCurrency, setReportingCurrency] = useState("EUR");
+  const [reportingCurrencyOverride, setReportingCurrencyOverride] =
+    useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user?.reporting_currency) {
-      setReportingCurrency(user.reporting_currency);
-    }
-  }, [user]);
+  const savedReportingCurrency = user?.reporting_currency ?? "EUR";
+  const reportingCurrency =
+    reportingCurrencyOverride ?? savedReportingCurrency;
 
   async function handleSave() {
     if (isSaving) return;
@@ -47,6 +45,7 @@ export default function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
         queryClient.invalidateQueries({ queryKey: ["portfolio-summary"] }),
       ]);
+      setReportingCurrencyOverride(null);
       setMessage("Preferenze account salvate.");
     } catch (saveError) {
       console.error("[MIP account] Preference save failed", saveError);
@@ -56,7 +55,7 @@ export default function SettingsPage() {
     }
   }
 
-  const changed = reportingCurrency !== (user?.reporting_currency ?? "EUR");
+  const changed = reportingCurrency !== savedReportingCurrency;
 
   return (
     <Box sx={{ maxWidth: 760, mx: "auto", py: 2 }}>
@@ -109,7 +108,7 @@ export default function SettingsPage() {
             disabled={isSaving}
             helperText="Valuta consolidata dell'account."
             onChange={(value) => {
-              setReportingCurrency(value);
+              setReportingCurrencyOverride(value);
               setMessage(null);
               setError(null);
             }}
