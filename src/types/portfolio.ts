@@ -10,6 +10,11 @@ export interface Portfolio {
   profit_loss?: number | string | null;
   profit_loss_pct?: number | string | null;
   positions_count?: number | string | null;
+  pricing_complete?: boolean;
+  pending_price_count?: number;
+  priced_position_count?: number;
+  total_position_count?: number;
+  partial_portfolio_value?: number | string | null;
   created_at?: string;
   updated_at?: string;
 }

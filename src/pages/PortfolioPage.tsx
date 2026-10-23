@@ -80,6 +80,12 @@ export default function PortfolioPage() {
   const { data = [], isLoading, refetch } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"],
     queryFn: getPortfolios,
+    refetchInterval: (query) => {
+      const portfolios = query.state.data;
+      return portfolios?.some((portfolio) => portfolio.pricing_complete === false)
+        ? 5000
+        : false;
+    },
   });
 
   function resetDialog() {
@@ -161,7 +167,9 @@ export default function PortfolioPage() {
       minWidth: 150,
       flex: 1,
       sortable: true,
-      renderCell: ({ row }) => formatMoney(row.portfolio_value, row.base_currency),
+      renderCell: ({ row }) => row.pricing_complete === false
+        ? "In aggiornamento"
+        : formatMoney(row.portfolio_value, row.base_currency),
     },
     {
       field: "invested_value",
@@ -187,7 +195,9 @@ export default function PortfolioPage() {
             lineHeight: 1,
           }}
         >
-          {formatSignedMoney(row.profit_loss, row.base_currency)}
+          {row.pricing_complete === false
+            ? `In aggiornamento (${row.pending_price_count ?? 0})`
+            : formatSignedMoney(row.profit_loss, row.base_currency)}
         </Typography>
       ),
     },
@@ -207,7 +217,9 @@ export default function PortfolioPage() {
             lineHeight: 1,
           }}
         >
-          {formatSignedPercent(row.profit_loss_pct)}
+          {row.pricing_complete === false
+            ? "—"
+            : formatSignedPercent(row.profit_loss_pct)}
         </Typography>
       ),
     },
