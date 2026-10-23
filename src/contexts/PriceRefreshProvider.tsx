@@ -4,14 +4,17 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
 
+import api from "../api/api";
+
 const STORAGE_KEY = "mip.realtime-price-refresh";
-const REFRESH_INTERVAL_MS = 5_000;
+const REFRESH_INTERVAL_MS = 30_000;
 const PRICE_QUERY_KEYS = new Set([
   "watchlist-items",
   "positions",
@@ -34,8 +37,9 @@ function initialEnabled() {
 export function PriceRefreshProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [enabled, setEnabledState] = useState(initialEnabled);
+  const refreshInProgress = useRef(false);
 
-  const refreshNow = useCallback(async () => {
+  const refetchPriceQueries = useCallback(async () => {
     await queryClient.refetchQueries({
       type: "active",
       predicate: (query) => {
@@ -45,15 +49,27 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
     });
   }, [queryClient]);
 
+  const refreshNow = useCallback(async () => {
+    if (refreshInProgress.current) return;
+
+    refreshInProgress.current = true;
+    try {
+      await api.post("/market-data/prices/refresh");
+      await refetchPriceQueries();
+    } catch (error) {
+      console.error("[MIP prices] Live price refresh failed", error);
+    } finally {
+      refreshInProgress.current = false;
+    }
+  }, [refetchPriceQueries]);
+
   const setEnabled = useCallback((value: boolean) => {
     setEnabledState(value);
     window.localStorage.setItem(STORAGE_KEY, String(value));
   }, []);
 
   useEffect(() => {
-    if (!enabled) {
-      return undefined;
-    }
+    if (!enabled) return undefined;
 
     void refreshNow();
     const intervalId = window.setInterval(() => {

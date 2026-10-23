@@ -40,11 +40,6 @@ const assetCurrency = (a: AssetSearchResult) => a.currency ?? a.currency_code ??
 const assetType = (a: AssetSearchResult) => a.type ?? a.instrument_type ?? null;
 const assetKey = (a: AssetSearchResult) => [a.symbol, a.data_source ?? "YAHOO", assetExchange(a) ?? ""].join("|");
 
-function formatNumber(value: unknown) {
-  if (value == null || value === "") return "";
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toLocaleString("it-IT") : String(value);
-}
 function formatMoney(value: unknown) {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00";
@@ -159,7 +154,7 @@ export default function PortfolioDetailsPage() {
     <Paper sx={{ height: 700 }}><DataGrid rows={data} checkboxSelection disableRowSelectionOnClick rowSelectionModel={rowSelectionModel} onRowSelectionModelChange={setRowSelectionModel} loading={isLoading} getRowId={(row) => row.position_id} columns={[
       { field: "symbol", headerName: "Symbol", flex: 1 }, { field: "name", headerName: "Company", flex: 2 },
       { field: "quantity", headerName: "Quantity", flex: 1 }, { field: "currency_code", headerName: "Currency", width: 90 }, { field: "avg_price", headerName: "PMC", flex: 1, renderCell: (p) => formatMoney(p.value) },
-      { field: "last_price", headerName: "Current", flex: 1.6, renderCell: (params) => <PriceDisplay value={params.value} priceAsOf={params.row.price_as_of} priceIsStale={params.row.price_is_stale} refreshStatus={params.row.price_refresh_status} formatter={formatNumber} /> },
+      { field: "last_price", headerName: "Current", flex: 1.6, renderCell: (params) => <PriceDisplay value={params.value} priceAsOf={params.row.price_as_of} priceIsStale={params.row.price_is_stale} refreshStatus={params.row.price_refresh_status} formatter={formatMoney} /> },
       { field: "market_value", headerName: "Value", flex: 1, renderCell: (p) => p.row.last_price == null ? "In aggiornamento" : formatMoney(p.value) },
       { field: "profit_loss", headerName: "P/L", flex: 1, renderCell: (p) => p.row.last_price == null ? "—" : formatSignedMoney(p.value) },
       { field: "profit_loss_pct", headerName: "P/L %", flex: 1, renderCell: (p) => p.row.last_price == null ? "—" : formatSignedPercent(p.value) },
