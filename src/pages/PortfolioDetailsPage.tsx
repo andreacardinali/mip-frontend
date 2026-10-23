@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+
+import type { PortfolioSummary } from "../types/portfolio";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 
@@ -143,11 +145,17 @@ export default function PortfolioDetailsPage() {
         .filter((rowId: string) => !rowSelectionModel.ids.has(rowId))
     : Array.from(rowSelectionModel.ids).map(String);
 
-  const { data: summary } = useQuery({
+  const { data: summary } = useQuery<PortfolioSummary>({
     queryKey: ["portfolio-summary", id],
     queryFn: () => getPortfolioSummary(id!),
     enabled: Boolean(id),
+    refetchInterval: (query) => {
+      const current = query.state.data;
+      return current && !current.pricing_complete ? 5000 : false;
+    },
   });
+
+  const pricingPending = Boolean(summary && !summary.pricing_complete);
 
   const { data: searchResults, isFetching: isSearching } = useQuery({
     queryKey: ["asset-search", searchText.trim()],
@@ -317,8 +325,10 @@ export default function PortfolioDetailsPage() {
             <Typography variant="caption" color="text.secondary">
               Current value
             </Typography>
-            <Typography variant="h6">
-              {formatMoney(summary?.portfolio_value_native)} {summary?.portfolio_currency}
+            <Typography variant="h6" sx={{ color: pricingPending ? "warning.main" : undefined }}>
+              {pricingPending
+                ? "Saldo in aggiornamento"
+                : `${formatMoney(summary?.portfolio_value_native)} ${summary?.portfolio_currency ?? ""}`}
             </Typography>
           </Box>
 
@@ -333,7 +343,9 @@ export default function PortfolioDetailsPage() {
                 fontWeight: 700,
               }}
             >
-              {formatSignedMoney(summary?.profit_loss_native)} {summary?.portfolio_currency}
+              {pricingPending
+                ? "In aggiornamento"
+                : `${formatSignedMoney(summary?.profit_loss_native)} ${summary?.portfolio_currency ?? ""}`}
             </Typography>
             <Typography
               variant="body2"
@@ -342,19 +354,33 @@ export default function PortfolioDetailsPage() {
                 fontWeight: 700,
               }}
             >
-              {formatSignedPercent(summary?.profit_loss_pct)}
+              {pricingPending ? "—" : formatSignedPercent(summary?.profit_loss_pct)}
             </Typography>
           </Box>
         </Stack>
+
+        {pricingPending && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Saldo in aggiornamento: {summary?.pending_price_count ?? 0} posizione
+            {(summary?.pending_price_count ?? 0) === 1 ? "" : "i"} in attesa del prezzo.
+            {summary?.priced_position_count ? (
+              <> Valore parziale disponibile: {formatMoney(summary.partial_portfolio_value_native)} {summary.portfolio_currency}.</>
+            ) : null}
+          </Alert>
+        )}
 
         <Divider sx={{ my: 2 }} />
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={3}>
           <Typography variant="body2" color="text.secondary">
-            Reporting value: {formatMoney(summary?.portfolio_value_reporting)} {summary?.reporting_currency}
+            Reporting value: {pricingPending
+              ? "In aggiornamento"
+              : `${formatMoney(summary?.portfolio_value_reporting)} ${summary?.reporting_currency ?? ""}`}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Reporting P/L: {formatSignedMoney(summary?.profit_loss_reporting)} {summary?.reporting_currency}
+            Reporting P/L: {pricingPending
+              ? "In aggiornamento"
+              : `${formatSignedMoney(summary?.profit_loss_reporting)} ${summary?.reporting_currency ?? ""}`}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Positions: {summary?.positions_count ?? 0}
@@ -412,9 +438,24 @@ export default function PortfolioDetailsPage() {
                 );
               },
             },
-            { field: "market_value", headerName: "Value", flex: 1 },
-            { field: "profit_loss", headerName: "P/L", flex: 1 },
-            { field: "profit_loss_pct", headerName: "P/L %", flex: 1 },
+            {
+              field: "market_value",
+              headerName: "Value",
+              flex: 1,
+              renderCell: (params) => params.row.last_price == null ? "In aggiornamento" : formatNumber(params.value),
+            },
+            {
+              field: "profit_loss",
+              headerName: "P/L",
+              flex: 1,
+              renderCell: (params) => params.row.last_price == null ? "—" : formatSignedMoney(params.value),
+            },
+            {
+              field: "profit_loss_pct",
+              headerName: "P/L %",
+              flex: 1,
+              renderCell: (params) => params.row.last_price == null ? "—" : formatSignedPercent(params.value),
+            },
             {
               field: "edit", headerName: "Edit", width: 80, sortable: false,
               renderCell: (params) => (

@@ -18,13 +18,19 @@ export interface PortfolioSummary {
   portfolio_currency: string;
   reporting_currency: string;
   invested_value_native: number | string;
-  portfolio_value_native: number | string;
-  profit_loss_native: number | string;
+  portfolio_value_native: number | string | null;
+  profit_loss_native: number | string | null;
   invested_value_reporting: number | string;
-  portfolio_value_reporting: number | string;
-  profit_loss_reporting: number | string;
+  portfolio_value_reporting: number | string | null;
+  profit_loss_reporting: number | string | null;
   profit_loss_pct: number | string | null;
   positions_count: number | string;
+  pricing_complete: boolean;
+  pending_price_count: number;
+  priced_position_count: number;
+  total_position_count: number;
+  partial_portfolio_value_native: number | string | null;
+  partial_portfolio_value_reporting: number | string | null;
 }
 
 export interface PortfolioUpsertRequest {
