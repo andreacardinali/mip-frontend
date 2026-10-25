@@ -27,6 +27,21 @@ export interface SchedulerJobRun {
   result: Record<string, unknown> | null;
 }
 
+export interface SchedulerRunLog {
+  log_id: number;
+  job_run_id: string;
+  logged_at: string;
+  level: string;
+  logger_name: string;
+  message: string;
+}
+
+export interface ManualRunRequest {
+  request_id: string;
+  job_run_id: string;
+  status: string;
+}
+
 export interface SchedulerJobUpdate {
   enabled?: boolean;
   trigger_type?: "cron" | "interval";
@@ -35,37 +50,49 @@ export interface SchedulerJobUpdate {
 }
 
 export async function listSchedulerJobs(): Promise<SchedulerJob[]> {
-  const response = await api.get<SchedulerJob[]>(
-    "/admin/system/scheduler/jobs",
-  );
-  return response.data;
+  return (await api.get<SchedulerJob[]>("/admin/system/scheduler/jobs")).data;
 }
 
 export async function updateSchedulerJob(
   jobKey: string,
   payload: SchedulerJobUpdate,
 ) {
-  const response = await api.patch(
-    `/admin/system/scheduler/jobs/${jobKey}`,
-    payload,
-  );
-  return response.data;
+  return (
+    await api.patch(`/admin/system/scheduler/jobs/${jobKey}`, payload)
+  ).data;
 }
 
-export async function runSchedulerJob(jobKey: string) {
-  const response = await api.post(
-    `/admin/system/scheduler/jobs/${jobKey}/run`,
-  );
-  return response.data;
+export async function runSchedulerJob(
+  jobKey: string,
+): Promise<ManualRunRequest> {
+  return (
+    await api.post<ManualRunRequest>(
+      `/admin/system/scheduler/jobs/${jobKey}/run`,
+    )
+  ).data;
 }
 
 export async function listSchedulerJobRuns(
   jobKey: string,
   limit = 20,
 ): Promise<SchedulerJobRun[]> {
-  const response = await api.get<SchedulerJobRun[]>(
-    `/admin/system/scheduler/jobs/${jobKey}/runs`,
-    { params: { limit } },
-  );
-  return response.data;
+  return (
+    await api.get<SchedulerJobRun[]>(
+      `/admin/system/scheduler/jobs/${jobKey}/runs`,
+      { params: { limit } },
+    )
+  ).data;
+}
+
+export async function listSchedulerRunLogs(
+  jobRunId: string,
+  afterLogId = 0,
+  limit = 500,
+): Promise<SchedulerRunLog[]> {
+  return (
+    await api.get<SchedulerRunLog[]>(
+      `/admin/system/scheduler/runs/${jobRunId}/logs`,
+      { params: { after_log_id: afterLogId, limit } },
+    )
+  ).data;
 }
