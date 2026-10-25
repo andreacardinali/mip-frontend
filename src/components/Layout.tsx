@@ -29,6 +29,13 @@ export default function Layout() {
     { label: "Settings", path: "/settings" },
   ];
 
+if (user?.roles.includes("ADMIN")) {
+  menu.push({
+    label: "Sistema",
+    path: "/system-settings",
+  });
+}
+
   return (
     <>
       <AppBar position="static">

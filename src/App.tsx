@@ -5,6 +5,7 @@ import {
 } from "react-router-dom";
 
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import WatchlistsPage from "./pages/WatchlistsPage";
@@ -14,6 +15,7 @@ import CatalystsPage from "./pages/CatalystsPage";
 import SettingsPage from "./pages/SettingsPage";
 import WatchlistDetailsPage from "./pages/WatchlistDetailsPage";
 import PortfolioDetailsPage from "./pages/PortfolioDetailsPage";
+import SystemSettingsPage from "./pages/SystemSettingsPage";
 import Layout from "./components/Layout";
 
 export default function App() {
@@ -66,6 +68,12 @@ export default function App() {
             <Route
               path="/portfolios/:id"
               element={<PortfolioDetailsPage />}
+            />
+          </Route>
+          <Route element={<AdminRoute />}>
+            <Route
+              path="/system-settings"
+              element={<SystemSettingsPage />}
             />
           </Route>
         </Route>
