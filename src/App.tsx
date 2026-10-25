@@ -69,12 +69,12 @@ export default function App() {
               path="/portfolios/:id"
               element={<PortfolioDetailsPage />}
             />
-          </Route>
-          <Route element={<AdminRoute />}>
-            <Route
-              path="/system-settings"
-              element={<SystemSettingsPage />}
-            />
+            <Route element={<AdminRoute />}>
+              <Route
+                path="/system-settings"
+                element={<SystemSettingsPage />}
+              />
+            </Route>
           </Route>
         </Route>
       </Routes>
