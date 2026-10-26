@@ -148,7 +148,13 @@ export default function SystemSettingsPage() {
   }, []);
 
   useEffect(() => {
-    void loadJobs();
+    const timer = window.setTimeout(() => {
+      void loadJobs();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [loadJobs]);
 
   useEffect(() => {

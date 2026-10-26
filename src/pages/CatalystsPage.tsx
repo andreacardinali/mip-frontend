@@ -115,9 +115,11 @@ export default function CatalystsPage() {
   });
 
   const data = catalystsQuery.data ?? [];
+  const referenceTime = catalystsQuery.dataUpdatedAt;
+
   const upcomingCount = data.filter((row) => {
     if (!row.catalyst_date) return false;
-    return new Date(row.catalyst_date).getTime() >= Date.now();
+    return new Date(row.catalyst_date).getTime() >= referenceTime;
   }).length;
   const highCount = data.filter(
     (row) => (importanceValue(row.importance) ?? -1) >= 75,
