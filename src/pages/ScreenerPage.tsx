@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import HistoryIcon from "@mui/icons-material/History";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Alert,
@@ -23,10 +24,14 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getScreenerOpportunities,
   getScreenerOpportunity,
+  getScreenerRuns,
+  getScreenerSnapshots,
+  getScreenerSnapshotItems,
 } from "../services/marketScreener";
 import type {
   PortfolioMatchType,
   ScreenerOpportunity,
+  ScreenerSnapshotItem,
 } from "../types/marketScreener";
 
 function score(value: number | null) {
@@ -84,6 +89,8 @@ export default function ScreenerPage() {
   const [minimumScore, setMinimumScore] = useState("0");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
 
   const filters = useMemo(
     () => ({
@@ -115,6 +122,21 @@ export default function ScreenerPage() {
     enabled: Boolean(selectedId),
   });
 
+  const runsQuery = useQuery({
+    queryKey: ["market-screener-runs"],
+    queryFn: () => getScreenerRuns(20),
+  });
+  const snapshotsQuery = useQuery({
+    queryKey: ["market-screener-snapshots"],
+    queryFn: () => getScreenerSnapshots(20),
+  });
+  const snapshotItemsQuery = useQuery({
+    queryKey: ["market-screener-snapshot-items", selectedSnapshotId],
+    queryFn: () => getScreenerSnapshotItems(selectedSnapshotId ?? ""),
+    enabled: Boolean(selectedSnapshotId),
+  });
+  const latestRun = runsQuery.data?.[0];
+
   const rows = opportunitiesQuery.data ?? [];
   const portfolioCount = rows.filter((row) => row.portfolio_match).length;
 
@@ -130,6 +152,18 @@ export default function ScreenerPage() {
       headerName: "Entità",
       minWidth: 210,
       flex: 1,
+    },
+    {
+      field: "signal_type",
+      headerName: "Segnale",
+      minWidth: 165,
+      renderCell: ({ row }) => (
+        <Chip
+          size="small"
+          color={row.signal_type === "BUY" || row.signal_type === "STRONG_BUY" ? "success" : row.signal_type === "SELL" || row.signal_type === "STRONG_SELL" ? "error" : "default"}
+          label={`${row.signal_type ?? "N/D"} · ${row.strategy_code ?? "N/D"}`}
+        />
+      ),
     },
     {
       field: "direction",
@@ -274,13 +308,22 @@ export default function ScreenerPage() {
             Opportunità associate all&apos;entità, con match sulle posizioni personali.
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={() => void opportunitiesQuery.refetch()}
-        >
-          Aggiorna
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<HistoryIcon />}
+            onClick={() => setHistoryOpen(true)}
+          >
+            Storico
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => void opportunitiesQuery.refetch()}
+          >
+            Aggiorna
+          </Button>
+        </Stack>
       </Stack>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -357,6 +400,12 @@ export default function ScreenerPage() {
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }}>
         <Chip label={`${rows.length} opportunità`} />
         <Chip color="primary" label={`${portfolioCount} collegate al portafoglio`} />
+        {latestRun && (
+          <Chip
+            color={latestRun.status === "SUCCESS" ? "success" : latestRun.status === "PARTIAL" ? "warning" : "error"}
+            label={`Ultimo run: ${latestRun.status} · ${new Date(latestRun.started_at).toLocaleString("it-IT")}`}
+          />
+        )}
       </Stack>
 
       {opportunitiesQuery.isError && (
@@ -420,6 +469,26 @@ export default function ScreenerPage() {
                   label={matchLabel(selected.portfolio_match_type)}
                 />
               </Stack>
+
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="h6" sx={{ mb: 1 }}>Segnale tecnico</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mb: 2 }}>
+                  <Chip color="primary" label={selected.strategy_code ?? "Strategia N/D"} />
+                  <Chip color={selected.signal_type === "BUY" || selected.signal_type === "STRONG_BUY" ? "success" : selected.signal_type === "SELL" || selected.signal_type === "STRONG_SELL" ? "error" : "default"} label={selected.signal_type ?? "Tipo N/D"} />
+                  <Chip label={`Trend: ${selected.signal_trend ?? "N/D"}`} />
+                  <Chip label={`Timeframe: ${selected.signal_timeframe ?? "N/D"}`} />
+                  <Chip label={`Confidence: ${selected.signal_confidence === null ? "N/D" : `${(Number(selected.signal_confidence) * 100).toFixed(1)}%`}`} />
+                </Stack>
+                <Typography>
+                  Prezzo riferimento: {selected.reference_price ?? "N/D"} · Invalidazione: {selected.invalidation_price ?? "N/D"} · Target: {selected.target_price ?? "N/D"}
+                </Typography>
+                <Typography sx={{ mt: 1 }}>
+                  Motivi: {(selected.signal_reasons ?? []).length ? (selected.signal_reasons ?? []).join(", ") : "N/D"}
+                </Typography>
+                <Box component="pre" sx={{ mt: 2, p: 1.5, bgcolor: "action.hover", borderRadius: 1, overflow: "auto", whiteSpace: "pre-wrap" }}>
+                  {JSON.stringify(selected.technical_evidence ?? {}, null, 2)}
+                </Box>
+              </Paper>
 
               <Box>
                 <Typography variant="h6">Strumento analizzato</Typography>
@@ -511,6 +580,53 @@ export default function ScreenerPage() {
           <Button onClick={() => setSelectedId(null)}>Chiudi</Button>
         </DialogActions>
       </Dialog>
+      <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} fullWidth maxWidth="lg">
+        <DialogTitle>Storico Screener</DialogTitle>
+        <DialogContent dividers>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+            <Box sx={{ minWidth: 320 }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>Snapshot ranking</Typography>
+              <Stack spacing={1}>
+                {(snapshotsQuery.data ?? []).map((snapshot) => (
+                  <Button
+                    key={snapshot.ranking_snapshot_id}
+                    variant={selectedSnapshotId === snapshot.ranking_snapshot_id ? "contained" : "outlined"}
+                    onClick={() => setSelectedSnapshotId(snapshot.ranking_snapshot_id)}
+                    sx={{ justifyContent: "space-between" }}
+                  >
+                    {new Date(snapshot.observed_at).toLocaleString("it-IT")} · {snapshot.opportunity_count}
+                  </Button>
+                ))}
+              </Stack>
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>Classifica storica</Typography>
+              <Paper variant="outlined" sx={{ height: 520 }}>
+                <DataGrid<ScreenerSnapshotItem>
+                  rows={snapshotItemsQuery.data ?? []}
+                  getRowId={(row) => row.ranking_snapshot_item_id}
+                  loading={snapshotItemsQuery.isLoading}
+                  columns={[
+                    { field: "ranking_position", headerName: "#", width: 60 },
+                    { field: "ranking_change", headerName: "Δ", width: 70,
+                      renderCell: ({ row }) => row.ranking_change === null ? "Nuova" : row.ranking_change > 0 ? `+${row.ranking_change}` : `${row.ranking_change}` },
+                    { field: "symbol", headerName: "Simbolo", width: 100 },
+                    { field: "direction", headerName: "Direzione", width: 105 },
+                    { field: "origin", headerName: "Origine", width: 105 },
+                    { field: "composite_score", headerName: "Composite", width: 110,
+                      renderCell: ({ row }) => <Typography sx={{ color: scoreColor(row.composite_score), fontWeight: 700 }}>{score(row.composite_score)}</Typography> },
+                    { field: "verdict", headerName: "Verdetto", width: 110 },
+                  ]}
+                  pageSizeOptions={[25, 50, 100]}
+                  disableRowSelectionOnClick
+                />
+              </Paper>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions><Button onClick={() => setHistoryOpen(false)}>Chiudi</Button></DialogActions>
+      </Dialog>
+
     </Box>
   );
 }
