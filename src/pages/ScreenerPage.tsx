@@ -29,6 +29,7 @@ import {
   getScreenerSnapshotItems,
 } from "../services/marketScreener";
 import type {
+  ConsensusDirection,
   PortfolioMatchType,
   ScreenerOpportunity,
   ScreenerSnapshotItem,
@@ -85,6 +86,7 @@ export default function ScreenerPage() {
   const [origin, setOrigin] = useState("");
   const [direction, setDirection] = useState("");
   const [verdict, setVerdict] = useState("");
+  const [consensusDirection, setConsensusDirection] = useState<ConsensusDirection | "">("");
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
   const [minimumScore, setMinimumScore] = useState("0");
   const [query, setQuery] = useState("");
@@ -98,6 +100,7 @@ export default function ScreenerPage() {
       origin: origin || undefined,
       direction: direction || undefined,
       verdict: verdict || undefined,
+      consensus_direction: consensusDirection || undefined,
       portfolio_match:
         portfolioFilter === "YES"
           ? true
@@ -108,7 +111,7 @@ export default function ScreenerPage() {
       query: query.trim() || undefined,
       limit: 500,
     }),
-    [origin, direction, verdict, portfolioFilter, minimumScore, query],
+    [origin, direction, verdict, consensusDirection, portfolioFilter, minimumScore, query],
   );
 
   const opportunitiesQuery = useQuery({
@@ -187,6 +190,14 @@ export default function ScreenerPage() {
           color={originColor(row.origin)}
           label={row.origin}
         />
+      ),
+    },
+    {
+      field: "consensus_direction",
+      headerName: "Consenso",
+      width: 125,
+      renderCell: ({ row }) => (
+        <Chip size="small" color={row.consensus_direction === "LONG" ? "success" : row.consensus_direction === "SHORT" ? "error" : row.consensus_direction === "CONFLICT" ? "warning" : "default"} label={`${row.consensus_direction} · ${row.strategy_count}`} />
       ),
     },
     {
@@ -368,6 +379,20 @@ export default function ScreenerPage() {
           <TextField
             select
             size="small"
+            label="Consenso"
+            value={consensusDirection}
+            sx={{ minWidth: 150 }}
+            onChange={(event) => setConsensusDirection(event.target.value as ConsensusDirection | "", )}
+          >
+            <MenuItem value="">Tutti</MenuItem>
+            <MenuItem value="LONG">Long</MenuItem>
+            <MenuItem value="SHORT">Short</MenuItem>
+            <MenuItem value="CONFLICT">Conflitto</MenuItem>
+            <MenuItem value="NEUTRAL">Neutrale</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
             label="Portafoglio"
             value={portfolioFilter}
             sx={{ minWidth: 170 }}
@@ -539,6 +564,19 @@ export default function ScreenerPage() {
                   ))}
                 </Stack>
               </Box>
+
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="h6">Consenso strategie</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, my: 1 }}>
+                  <Chip label={`Direzione: ${selected.consensus_direction}`} color={selected.consensus_direction === "CONFLICT" ? "warning" : selected.consensus_direction === "LONG" ? "success" : selected.consensus_direction === "SHORT" ? "error" : "default"} />
+                  <Chip label={`Long: ${selected.bullish_strategy_count}`} />
+                  <Chip label={`Short: ${selected.bearish_strategy_count}`} />
+                  <Chip label={`Consenso: ${score(selected.consensus_score)}`} />
+                  <Chip label={`Conflitto: ${score(selected.conflict_score)}`} />
+                </Stack>
+                <Typography>Favorevoli: {selected.supporting_strategies.join(", ") || "N/D"}</Typography>
+                <Typography>Contrarie: {selected.opposing_strategies.join(", ") || "N/D"}</Typography>
+              </Paper>
 
               <Box>
                 <Typography variant="h6">Punteggi</Typography>
