@@ -1,36 +1,7 @@
 export type CatalystScope = "MY_ASSETS" | "PORTFOLIO" | "WATCHLIST" | "ALL";
-
-export type Catalyst = {
-  catalyst_id: string;
-  entity_id: string;
-  entity_name: string;
-  symbol: string | null;
-  exchange: string | null;
-  catalyst_type: string | null;
-  catalyst_date: string | null;
-  status: string | null;
-  importance: number | string | null;
-  title: string | null;
-  source: string | null;
-  raw_payload: Record<string, unknown> | null;
-  in_portfolio: boolean;
-  in_watchlist: boolean;
-  asset_scope: "PORTFOLIO" | "WATCHLIST" | "BOTH" | "GLOBAL";
-};
-
-export type CatalystFacets = {
-  types: string[];
-  statuses: string[];
-  sources: string[];
-};
-
-export type CatalystFilters = {
-  scope: CatalystScope;
-  date_from?: string;
-  date_to?: string;
-  catalyst_type?: string;
-  status?: string;
-  importance_min?: number;
-  query?: string;
-  limit?: number;
-};
+export type AssetMatchType = "EXACT_INSTRUMENT" | "SAME_ISIN" | "SAME_ENTITY" | "NO_MATCH";
+export type AssetMatchPosition = { position_id:string; portfolio_id:string; portfolio_name:string; instrument_id:string; symbol:string|null; exchange:string|null; currency_code:string|null; quantity:number|string; match_type:AssetMatchType };
+export type EntityAssetMatch = { in_portfolio:boolean; in_watchlist:boolean; asset_scope:"PORTFOLIO"|"WATCHLIST"|"BOTH"|"GLOBAL"; portfolio_match_type:AssetMatchType; portfolio_position_count:number; portfolio_symbols:string[]; portfolio_names:string[]; portfolio_positions:AssetMatchPosition[]; watchlist_item_count:number; watchlist_names:string[]; watchlist_items:unknown[] };
+export type Catalyst = { catalyst_id:string; entity_id:string; entity_name:string; symbol:string|null; exchange:string|null; catalyst_type:string|null; catalyst_date:string|null; status:string|null; importance:number|string|null; title:string|null; source:string|null; raw_payload:(Record<string,unknown>&{asset_match?:EntityAssetMatch})|null; in_portfolio:boolean; in_watchlist:boolean; asset_scope:"PORTFOLIO"|"WATCHLIST"|"BOTH"|"GLOBAL" };
+export type CatalystFacets = { types:string[]; statuses:string[]; sources:string[] };
+export type CatalystFilters = { scope:CatalystScope; date_from?:string; date_to?:string; catalyst_type?:string; status?:string; importance_min?:number; query?:string; limit?:number };
