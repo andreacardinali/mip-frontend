@@ -42,6 +42,7 @@ type AssetSearchResult = {
   type?: string | null;
   instrument_type?: string | null;
   data_source?: string | null;
+  isin?: string | null;
 };
 
 const assetExchange = (asset: AssetSearchResult) =>
@@ -120,6 +121,10 @@ export default function WatchlistDetailsPage() {
         const imported = await importSymbol({
           symbol: entity.symbol,
           data_source: entity.data_source,
+          exchange: assetExchange(entity),
+          currency: assetCurrency(entity),
+          instrument_type: assetType(entity),
+          isin: entity.isin,
         });
         await saveWatchlistItem({
           watchlist_id: id,

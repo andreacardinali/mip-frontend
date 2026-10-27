@@ -12,6 +12,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import api from "../api/api";
+import { useAuth } from "./AuthProvider";
 
 const STORAGE_KEY = "mip.realtime-price-refresh";
 const REFRESH_INTERVAL_MS = 30_000;
@@ -19,6 +20,7 @@ const PRICE_QUERY_KEYS = new Set([
   "watchlist-items",
   "positions",
   "portfolio-summary",
+  "portfolios",
 ]);
 
 type PriceRefreshContextValue = {
@@ -36,8 +38,11 @@ function initialEnabled() {
 
 export function PriceRefreshProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const { authenticated } = useAuth();
   const [enabled, setEnabledState] = useState(initialEnabled);
+  const [waitingForPrices, setWaitingForPrices] = useState(false);
   const refreshInProgress = useRef(false);
+  const pollingDeadline = useRef(0);
 
   const refetchPriceQueries = useCallback(async () => {
     await queryClient.refetchQueries({
@@ -50,18 +55,22 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const refreshNow = useCallback(async () => {
-    if (refreshInProgress.current) return;
+    if (!authenticated || refreshInProgress.current) return;
 
     refreshInProgress.current = true;
     try {
-      await api.post("/market-data/prices/refresh");
+      const response = await api.post<{ enqueued_count: number }>("/market-data/prices/refresh");
+      if (response.data.enqueued_count > 0) {
+        pollingDeadline.current = Date.now() + 180_000;
+        setWaitingForPrices(true);
+      }
       await refetchPriceQueries();
     } catch (error) {
       console.error("[MIP prices] Live price refresh failed", error);
     } finally {
       refreshInProgress.current = false;
     }
-  }, [refetchPriceQueries]);
+  }, [authenticated, refetchPriceQueries]);
 
   const setEnabled = useCallback((value: boolean) => {
     setEnabledState(value);
@@ -69,7 +78,7 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled || !authenticated) return undefined;
 
     void refreshNow();
     const intervalId = window.setInterval(() => {
@@ -79,7 +88,41 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
     }, REFRESH_INTERVAL_MS);
 
     return () => window.clearInterval(intervalId);
-  }, [enabled, refreshNow]);
+  }, [enabled, authenticated, refreshNow]);
+
+  useEffect(() => {
+    if (!authenticated || !waitingForPrices) return undefined;
+    let cancelled = false;
+    let polling = false;
+    const intervalId = window.setInterval(async () => {
+      if (Date.now() >= pollingDeadline.current) {
+        setWaitingForPrices(false);
+        return;
+      }
+      if (polling || document.visibilityState !== "visible") return;
+      polling = true;
+      try {
+        await refetchPriceQueries();
+        const pending = queryClient.getQueryCache().findAll({ type: "active" }).some((query) => {
+          if (!PRICE_QUERY_KEYS.has(String(query.queryKey[0]))) return false;
+          const rows = Array.isArray(query.state.data) ? query.state.data : [query.state.data];
+          return rows.some((row) => row && (
+            row.price_refresh_pending === true ||
+            ["PENDING", "PROCESSING"].includes(row.price_refresh_status)
+          ));
+        });
+        if (!cancelled && !pending) setWaitingForPrices(false);
+      } catch (error) {
+        console.error("[MIP prices] Price polling failed", error);
+      } finally {
+        polling = false;
+      }
+    }, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [authenticated, waitingForPrices, queryClient, refetchPriceQueries]);
 
   const value = useMemo(
     () => ({ enabled, setEnabled, refreshNow, intervalMs: REFRESH_INTERVAL_MS }),

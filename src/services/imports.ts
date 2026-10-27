@@ -5,6 +5,10 @@ import api from "../api/api";
 type ImportSymbolRequest = {
   symbol: string;
   data_source?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  isin?: string | null;
+  instrument_type?: string | null;
 };
 
 type ImportSymbolResponse = {
@@ -60,6 +64,7 @@ export async function importSymbol(
       await api.post<ImportSymbolResponse>(
         "/import/entity",
         {
+          ...request,
           symbol,
           data_source:
             request.data_source

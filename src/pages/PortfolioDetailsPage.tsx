@@ -27,6 +27,7 @@ import { DataGrid } from "@mui/x-data-grid";
 import type { GridRowSelectionModel } from "@mui/x-data-grid";
 
 import PriceDisplay from "../components/PriceDisplay";
+import CurrencySelect from "../components/CurrencySelect";
 import { deletePosition, getPositions, savePosition } from "../services/positions";
 import { getPortfolioSummary } from "../services/portfolios";
 import { searchAssets } from "../services/search";
@@ -43,6 +44,7 @@ type AssetSearchResult = {
   type?: string | null;
   instrument_type?: string | null;
   data_source?: string | null;
+  isin?: string | null;
 };
 
 type PositionRow = {
@@ -53,6 +55,10 @@ type PositionRow = {
   name: string;
   quantity: number | string;
   avg_price: number | string | null;
+  cost_basis_amount?: number | string | null;
+  cost_basis_currency?: string | null;
+  opened_at?: string | null;
+  notes?: string | null;
   last_price?: number | string | null;
   price_refresh_status?: string | null;
   price_as_of?: string | null;
@@ -70,17 +76,19 @@ const assetKey = (asset: AssetSearchResult) =>
   [asset.symbol, asset.data_source ?? "YAHOO", assetExchange(asset) ?? ""].join("|");
 
 function formatMoney(value: unknown) {
-  const number = Number(value ?? 0);
+  if (value == null || value === "") return "N/D";
+  const number = Number(value);
   return Number.isFinite(number)
     ? number.toLocaleString("it-IT", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         useGrouping: true,
       })
-    : "0,00";
+    : "N/D";
 }
 
 function formatSignedMoney(value: unknown) {
+  if (value == null || value === "") return "N/D";
   const number = Number(value);
   return Number.isFinite(number)
     ? `${number > 0 ? "+" : ""}${formatMoney(number)}`
@@ -115,6 +123,8 @@ export default function PortfolioDetailsPage() {
   const [instrument, setInstrument] = useState<AssetSearchResult | null>(null);
   const [quantity, setQuantity] = useState("");
   const [avgPrice, setAvgPrice] = useState("");
+  const [costBasis, setCostBasis] = useState("");
+  const [costCurrency, setCostCurrency] = useState("EUR");
   const [searchText, setSearchText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -170,6 +180,8 @@ export default function PortfolioDetailsPage() {
     setInstrument(null);
     setQuantity("");
     setAvgPrice("");
+    setCostBasis("");
+    setCostCurrency(summary?.portfolio_currency?.trim() ?? "EUR");
     setSearchText("");
     setSaveError(null);
   }
@@ -178,6 +190,7 @@ export default function PortfolioDetailsPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["positions", id] }),
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", id] }),
+      queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
     ]);
   }
 
@@ -191,6 +204,8 @@ export default function PortfolioDetailsPage() {
     setInstrument(null);
     setQuantity(String(row.quantity ?? ""));
     setAvgPrice(String(row.avg_price ?? ""));
+    setCostBasis(String(row.cost_basis_amount ?? ""));
+    setCostCurrency(row.cost_basis_currency?.trim() ?? summary?.portfolio_currency?.trim() ?? "EUR");
     setSaveError(null);
     setOpen(true);
   }
@@ -210,7 +225,8 @@ export default function PortfolioDetailsPage() {
       !Number.isFinite(parsedQuantity) ||
       parsedQuantity <= 0 ||
       !Number.isFinite(parsedAvgPrice) ||
-      parsedAvgPrice < 0
+      parsedAvgPrice < 0 ||
+      (costBasis !== "" && (!Number.isFinite(Number(costBasis)) || Number(costBasis) < 0))
     ) {
       return;
     }
@@ -225,6 +241,10 @@ export default function PortfolioDetailsPage() {
           await importSymbol({
             symbol: instrument.symbol,
             data_source: instrument.data_source,
+            exchange: assetExchange(instrument),
+            currency: assetCurrency(instrument),
+            instrument_type: assetType(instrument),
+            isin: instrument.isin,
           })
         ).instrument_id;
       }
@@ -236,6 +256,10 @@ export default function PortfolioDetailsPage() {
         instrument_id: instrumentId,
         quantity: parsedQuantity,
         avg_price: parsedAvgPrice,
+        cost_basis_amount: costBasis === "" ? null : costBasis,
+        cost_basis_currency: costBasis === "" ? null : costCurrency,
+        opened_at: editingPosition?.opened_at ?? undefined,
+        notes: editingPosition?.notes ?? undefined,
       });
       await refreshQueries();
       setOpen(false);
@@ -281,6 +305,7 @@ export default function PortfolioDetailsPage() {
   const canSave =
     quantityValid &&
     avgPriceValid &&
+    (costBasis === "" || (Number.isFinite(Number(costBasis)) && Number(costBasis) >= 0)) &&
     Boolean(editingPosition || instrument) &&
     !isSaving;
 
@@ -570,16 +595,40 @@ export default function PortfolioDetailsPage() {
                 required
                 label="Quantity"
                 type="number"
+                slotProps={{ htmlInput: { min: 0, step: "any" } }}
                 value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
+                onChange={(event) => {
+                  setQuantity(event.target.value);
+                  setCostBasis("");
+                }}
               />
               <TextField
                 fullWidth
                 required
                 label="PMC"
                 type="number"
+                slotProps={{ htmlInput: { min: 0, step: "any" } }}
                 value={avgPrice}
-                onChange={(event) => setAvgPrice(event.target.value)}
+                onChange={(event) => {
+                  setAvgPrice(event.target.value);
+                  setCostBasis("");
+                }}
+              />
+            </Stack>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <TextField
+                fullWidth
+                label="Costo storico totale"
+                type="number"
+                slotProps={{ htmlInput: { min: 0, step: "any" } }}
+                value={costBasis}
+                onChange={(event) => setCostBasis(event.target.value)}
+              />
+              <CurrencySelect
+                label="Valuta del costo"
+                value={costCurrency}
+                onChange={setCostCurrency}
+                disabled={isSaving}
               />
             </Stack>
           </DialogContent>

@@ -28,6 +28,7 @@ import { getPortfolios, savePortfolio } from "../services/portfolios";
 import type { Portfolio } from "../types/portfolio";
 
 function numericValue(value: unknown) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }

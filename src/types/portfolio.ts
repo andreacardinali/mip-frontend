@@ -22,10 +22,10 @@ export interface Portfolio {
 export interface PortfolioSummary {
   portfolio_currency: string;
   reporting_currency: string;
-  invested_value_native: number | string;
+  invested_value_native: number | string | null;
   portfolio_value_native: number | string | null;
   profit_loss_native: number | string | null;
-  invested_value_reporting: number | string;
+  invested_value_reporting: number | string | null;
   portfolio_value_reporting: number | string | null;
   profit_loss_reporting: number | string | null;
   profit_loss_pct: number | string | null;

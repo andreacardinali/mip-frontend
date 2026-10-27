@@ -18,6 +18,8 @@ export async function savePosition(
     instrument_id: string;
     quantity: number;
     avg_price?: number;
+    cost_basis_amount?: number | string | null;
+    cost_basis_currency?: string | null;
     opened_at?: string;
     notes?: string;
   }
