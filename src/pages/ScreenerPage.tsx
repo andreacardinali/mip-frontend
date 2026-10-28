@@ -96,7 +96,6 @@ export default function ScreenerPage() {
 
   const filters = useMemo(
     () => ({
-      algorithm_version: "market-screener-v1",
       origin: origin || undefined,
       direction: direction || undefined,
       verdict: verdict || undefined,
