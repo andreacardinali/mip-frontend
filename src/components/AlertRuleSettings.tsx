@@ -1,6 +1,7 @@
 import { useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 import HistoryIcon from "@mui/icons-material/History";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -14,7 +15,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useAuth } from "../contexts/AuthProvider";
-import { getAlertEvents, getAlertRules, saveAlertRule } from "../services/alerts";
+import { deleteAlertRule, getAlertEvents, getAlertRules, saveAlertRule, setAlertRuleEnabled } from "../services/alerts";
 import { getWatchlists } from "../services/watchlists";
 import { getPortfolios } from "../services/portfolios";
 import type { AlertConditions, AlertRule, AlertRulePayload } from "../services/alerts";
@@ -93,6 +94,10 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [deletingRule, setDeletingRule] = useState<AlertRule | null>(null);
   const [historyRule, setHistoryRule] = useState<AlertRule | null>(null);
   const [historyOffset, setHistoryOffset] = useState(0);
   const history = useQuery({
@@ -165,15 +170,61 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
     }
   }
 
+  async function toggleRule(rule: AlertRule, enabled: boolean) {
+    setActionBusy(true);
+    setActionError(null);
+    setActionMessage(null);
+    setSaved(false);
+    try {
+      await setAlertRuleEnabled(rule.rule_id, enabled);
+      await queryClient.cancelQueries({ queryKey });
+      queryClient.setQueryData<AlertRule[]>(queryKey, previous => previous?.map(item =>
+        item.rule_id === rule.rule_id ? { ...item, enabled } : item));
+      setActionMessage(enabled ? "Regola attivata." : "Regola disattivata.");
+      await queryClient.invalidateQueries({ queryKey });
+    } catch (actionFailure) {
+      const detail = isAxiosError(actionFailure) ? actionFailure.response?.data?.detail : null;
+      setActionError(typeof detail === "string" ? detail : "Impossibile aggiornare lo stato della regola.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function removeRule() {
+    if (!deletingRule) return;
+    setActionBusy(true);
+    setActionError(null);
+    setActionMessage(null);
+    setSaved(false);
+    try {
+      await deleteAlertRule(deletingRule.rule_id);
+      await queryClient.cancelQueries({ queryKey });
+      queryClient.setQueryData<AlertRule[]>(queryKey, previous =>
+        previous?.filter(rule => rule.rule_id !== deletingRule.rule_id));
+      queryClient.removeQueries({ queryKey: ["alert-events", user?.user_id, deletingRule.rule_id] });
+      if (historyRule?.rule_id === deletingRule.rule_id) setHistoryRule(null);
+      setDeletingRule(null);
+      setActionMessage("Regola eliminata.");
+      await queryClient.invalidateQueries({ queryKey });
+    } catch (actionFailure) {
+      const detail = isAxiosError(actionFailure) ? actionFailure.response?.data?.detail : null;
+      setActionError(typeof detail === "string" ? detail : "Impossibile eliminare la regola.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   return (
     <Box sx={{ borderTop: 1, borderColor: "divider", pt: 3 }}>
       <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="h6">Alert di mercato</Typography>
-        <Button startIcon={<AddIcon />} onClick={() => edit()} disabled={rules.isPending || rules.isError}>
+        <Button startIcon={<AddIcon />} onClick={() => edit()} disabled={actionBusy || rules.isPending || rules.isError}>
           Nuova regola
         </Button>
       </Stack>
       {saved && <Alert severity="success" sx={{ mb: 2 }}>Regola salvata.</Alert>}
+      {actionMessage && <Alert severity="success" sx={{ mb: 2 }}>{actionMessage}</Alert>}
+      {actionError && !deletingRule && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
       {rules.isPending && <CircularProgress size={24} aria-label="Caricamento regole" />}
       {rules.isError && (
         <Alert severity="error" action={
@@ -182,25 +233,53 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
       )}
       {rules.isSuccess && !visibleRules?.length && <Typography color="text.secondary">Nessuna regola.</Typography>}
       {visibleRules?.map(rule => (
-        <Stack key={rule.rule_id} direction="row" spacing={2}
-          sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", minWidth: 0, alignItems: "center" }}>
+        <Stack key={rule.rule_id} direction={{ xs: "column", sm: "row" }} spacing={1}
+          sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", minWidth: 0, alignItems: { xs: "stretch", sm: "center" } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ overflowWrap: "anywhere" }}>{rule.name}</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
               {rule.enabled ? "Attiva" : "Disattivata"} · {alertTypes[rule.alert_type]} · {scopes[rule.conditions.scope ?? "SCREENER"]} · {rule.severity} · {rule.cooldown_minutes} min
             </Typography>
           </Box>
-          <Tooltip title="Storico alert">
-            <IconButton aria-label={`Storico ${rule.name}`} onClick={() => {
-              setHistoryOffset(0);
-              setHistoryRule(rule);
-            }}><HistoryIcon /></IconButton>
-          </Tooltip>
-          <Tooltip title="Modifica regola">
-            <IconButton aria-label={`Modifica ${rule.name}`} onClick={() => edit(rule)}><EditIcon /></IconButton>
-          </Tooltip>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", justifyContent: "flex-end", flexShrink: 0 }}>
+            <Tooltip title={rule.enabled ? "Disattiva regola" : "Attiva regola"}><span>
+              <Switch checked={rule.enabled} disabled={actionBusy || rules.isFetching}
+                slotProps={{ input: { "aria-label": `Attiva ${rule.name}` } }}
+                onChange={(_, enabled) => void toggleRule(rule, enabled)} />
+            </span></Tooltip>
+            <Tooltip title="Storico alert">
+              <IconButton aria-label={`Storico ${rule.name}`} onClick={() => {
+                setHistoryOffset(0);
+                setHistoryRule(rule);
+              }}><HistoryIcon /></IconButton>
+            </Tooltip>
+            <Tooltip title="Modifica regola"><span>
+              <IconButton disabled={actionBusy || rules.isFetching} aria-label={`Modifica ${rule.name}`} onClick={() => edit(rule)}><EditIcon /></IconButton>
+            </span></Tooltip>
+            <Tooltip title="Elimina regola"><span>
+              <IconButton disabled={actionBusy || rules.isFetching} aria-label={`Elimina ${rule.name}`} onClick={() => {
+                setActionError(null);
+                setActionMessage(null);
+                setSaved(false);
+                setDeletingRule(rule);
+              }}><DeleteIcon /></IconButton>
+            </span></Tooltip>
+          </Stack>
         </Stack>
       ))}
+      <Dialog open={!!deletingRule && !!user} onClose={() => { if (!actionBusy) setDeletingRule(null); }} fullWidth maxWidth="xs">
+        <DialogTitle>Elimina regola</DialogTitle>
+        <DialogContent>
+          {actionError && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
+          <Typography sx={{ overflowWrap: "anywhere" }}>Eliminare la regola "{deletingRule?.name}" e tutto il suo storico?</Typography>
+          <Typography sx={{ mt: 1 }}>L&apos;operazione non puo essere annullata.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={actionBusy} onClick={() => setDeletingRule(null)}>Annulla</Button>
+          <Button color="error" variant="contained" disabled={actionBusy} onClick={() => void removeRule()}
+            startIcon={actionBusy ? <CircularProgress size={16} /> : <DeleteIcon />}>Elimina</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={!!historyRule && !!user} onClose={() => setHistoryRule(null)} fullWidth maxWidth="md">
         <DialogTitle sx={{ overflowWrap: "anywhere" }}>Storico alert: {historyRule?.name}</DialogTitle>
         <DialogContent>

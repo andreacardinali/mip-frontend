@@ -81,3 +81,11 @@ export async function saveAlertRule(payload: AlertRulePayload, ruleId?: string) 
     ? (await api.put<{ rule_id: string }>(`/alerts/${ruleId}`, payload)).data
     : (await api.post<{ rule_id: string }>("/alerts", payload)).data;
 }
+
+export async function setAlertRuleEnabled(ruleId: string, enabled: boolean) {
+  await api.patch(`/alerts/${ruleId}/enabled`, { enabled });
+}
+
+export async function deleteAlertRule(ruleId: string) {
+  await api.delete(`/alerts/${ruleId}`);
+}
