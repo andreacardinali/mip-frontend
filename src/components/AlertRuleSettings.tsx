@@ -84,7 +84,7 @@ export default function AlertRuleSettings() {
 
   return (
     <Box sx={{ borderTop: 1, borderColor: "divider", pt: 3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="h6">Alert di mercato</Typography>
         <Button startIcon={<AddIcon />} onClick={() => edit()} disabled={rules.isPending || rules.isError}>
           Nuova regola
@@ -99,8 +99,8 @@ export default function AlertRuleSettings() {
       )}
       {rules.isSuccess && !rules.data.length && <Typography color="text.secondary">Nessuna regola.</Typography>}
       {rules.data?.map(rule => (
-        <Stack key={rule.rule_id} direction="row" alignItems="center" spacing={2}
-          sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", minWidth: 0 }}>
+        <Stack key={rule.rule_id} direction="row" spacing={2}
+          sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", minWidth: 0, alignItems: "center" }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ overflowWrap: "anywhere" }}>{rule.name}</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
