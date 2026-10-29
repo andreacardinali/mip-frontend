@@ -452,6 +452,17 @@ export default function ScreenerPage() {
         <DataGrid
           rows={rows}
           columns={columns}
+          showToolbar
+          slotProps={{
+            toolbar: {
+              csvOptions: {
+                fileName: "mip-screener",
+                utf8WithBom: true,
+                escapeFormulas: true,
+              },
+              printOptions: { disableToolbarButton: true },
+            },
+          }}
           loading={opportunitiesQuery.isLoading}
           getRowId={(row) => row.opportunity_id}
           onRowClick={(params) => setSelectedId(params.row.opportunity_id)}

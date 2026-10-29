@@ -1,5 +1,13 @@
 # React + TypeScript + Vite
 
+## Screener CSV Export
+
+The Screener grid provides CSV export through the native MUI DataGrid toolbar.
+It exports the loaded, filtered and sorted results across grid pages, using the
+visible columns. API filters currently load at most 500 opportunities; this is
+not a full-database export. No additional endpoint or database routine is used.
+CSV files use UTF-8 with BOM and formula escaping for spreadsheet safety.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
