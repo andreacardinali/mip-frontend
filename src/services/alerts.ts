@@ -2,6 +2,20 @@ import api from "../api/api";
 
 export type AlertType = "MARKET_SIGNAL" | "FIXED_PRICE" | "PERCENT_MOVE" | "SIGNAL_CHANGE";
 export type MonitoringScope = "SCREENER" | "WATCHLIST" | "PORTFOLIO" | "ALL";
+export type SignalEventType = "CREATED" | "CONFIRMED" | "DIRECTION_CHANGED" | "CLOSED" | "EXPIRED";
+
+export interface InstrumentAlertOverride {
+  enabled?: boolean;
+  threshold?: number;
+  price_direction?: "UP" | "DOWN" | "ANY";
+  strategy_codes?: string[];
+  event_types?: SignalEventType[];
+  min_composite_score?: number;
+  min_consensus_score?: number;
+  max_conflict_score?: number;
+  min_strategy_count?: number;
+  regular_session_only?: boolean;
+}
 
 export interface AlertConditions {
   scope: MonitoringScope;
@@ -19,6 +33,12 @@ export interface AlertConditions {
   min_consensus_score: number;
   max_conflict_score: number;
   min_strategy_count: number;
+  regular_session_only: boolean;
+  crossing_only: boolean;
+  once_per_session: boolean;
+  notification_mode: "IMMEDIATE" | "DIGEST";
+  event_types: SignalEventType[];
+  instrument_overrides: Record<string, InstrumentAlertOverride>;
 }
 
 export interface AlertRulePayload {

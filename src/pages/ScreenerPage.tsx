@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import HistoryIcon from "@mui/icons-material/History";
+import ShowChartIcon from "@mui/icons-material/ShowChart";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Alert,
@@ -23,6 +24,7 @@ import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef } from "@mui/x-data-grid";
 import { useQuery } from "@tanstack/react-query";
 import AlertRuleSettings from "../components/AlertRuleSettings";
+import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 
 import {
   getScreenerOpportunities,
@@ -97,6 +99,7 @@ export default function ScreenerPage() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [performanceOpen, setPerformanceOpen] = useState(false);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
 
   const filters = useMemo(
@@ -329,7 +332,10 @@ export default function ScreenerPage() {
             Opportunità associate all&apos;entità, con match sulle posizioni personali.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+          <Button variant="outlined" startIcon={<ShowChartIcon />} onClick={() => setPerformanceOpen(true)}>
+            Performance
+          </Button>
           <Button
             variant="outlined"
             startIcon={<HistoryIcon />}
@@ -479,6 +485,7 @@ export default function ScreenerPage() {
       </Paper>
 
       <AlertRuleSettings context={{ scope: "SCREENER" }} />
+      <SignalPerformanceHistory open={performanceOpen} onClose={() => setPerformanceOpen(false)} />
 
       <Dialog
         open={Boolean(selectedId)}

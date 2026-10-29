@@ -18,6 +18,7 @@ import { useAuth } from "../contexts/AuthProvider";
 import { deleteAlertRule, getAlertEvents, getAlertRules, saveAlertRule, setAlertRuleEnabled } from "../services/alerts";
 import { getWatchlists } from "../services/watchlists";
 import { getPortfolios } from "../services/portfolios";
+import InstrumentAlertOverrides from "./InstrumentAlertOverrides";
 import type { AlertConditions, AlertRule, AlertRulePayload } from "../services/alerts";
 
 const alertTypes = {
@@ -28,6 +29,10 @@ const scopes = {
   SCREENER: "Screener", WATCHLIST: "Watchlist", PORTFOLIO: "Portafoglio", ALL: "Tutti gli ambiti",
 };
 const historyPageSize = 25;
+const lifecycleEvents = {
+  CREATED: "Creato", CONFIRMED: "Confermato", DIRECTION_CHANGED: "Cambio direzione",
+  CLOSED: "Chiuso", EXPIRED: "Scaduto",
+};
 const notificationStatuses: Record<string, string> = {
   PENDING: "In coda", PROCESSING: "In invio", RETRY: "Nuovo tentativo",
   SENT: "Inviata", FAILED: "Invio fallito",
@@ -59,6 +64,8 @@ function emptyRule(): AlertRulePayload {
       symbols: [], excluded_symbols: [], directions: [], verdicts: [], origins: [], strategy_codes: [],
       min_composite_score: 0.75, min_consensus_score: 0, max_conflict_score: 1,
       min_strategy_count: 1,
+      regular_session_only: false, crossing_only: true, once_per_session: true,
+      notification_mode: "IMMEDIATE", event_types: [], instrument_overrides: {},
     },
   };
 }
@@ -128,7 +135,11 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
       alert_type: rule.alert_type,
       name: rule.name, severity: rule.severity, channel: rule.channel,
       cooldown_minutes: rule.cooldown_minutes, enabled: rule.enabled,
-      conditions: { ...defaults.conditions, ...rule.conditions },
+      conditions: {
+        ...defaults.conditions, ...rule.conditions,
+        crossing_only: rule.conditions.crossing_only ?? false,
+        once_per_session: rule.conditions.once_per_session ?? false,
+      },
     } : defaults);
     setEditingId(rule?.rule_id);
     setError(null);
@@ -145,6 +156,12 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
       const conditions = { ...previous.conditions };
       delete conditions.threshold;
       delete conditions.price_direction;
+      conditions.instrument_overrides = Object.fromEntries(Object.entries(conditions.instrument_overrides).map(([id, value]) => {
+        const override = { ...value };
+        delete override.threshold;
+        delete override.price_direction;
+        return [id, override];
+      }));
       if (alert_type === "FIXED_PRICE" || alert_type === "PERCENT_MOVE") {
         conditions.threshold = NaN;
         conditions.price_direction = alert_type === "PERCENT_MOVE" ? "ANY" : "UP";
@@ -409,6 +426,28 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                   onChange={(_, values) => condition(key, values.map(value => value.trim().toUpperCase()).filter(Boolean))}
                   renderInput={params => <TextField {...params} label={label} />} />
               ))}
+              {form.alert_type === "SIGNAL_CHANGE" && (
+                <Autocomplete multiple options={Object.keys(lifecycleEvents) as AlertConditions["event_types"]}
+                  value={form.conditions.event_types} disabled={busy}
+                  getOptionLabel={value => lifecycleEvents[value]}
+                  onChange={(_, values) => condition("event_types", values)}
+                  renderInput={params => <TextField {...params} label="Eventi del segnale" />} />
+              )}
+              <TextField select fullWidth label="Invio notifiche" disabled={busy}
+                value={form.conditions.notification_mode}
+                onChange={event => condition("notification_mode", event.target.value as AlertConditions["notification_mode"])}>
+                <MenuItem value="IMMEDIATE">Immediato</MenuItem>
+                <MenuItem value="DIGEST">Riepilogo per esecuzione</MenuItem>
+              </TextField>
+              <FormControlLabel label="Solo sessione regolare" control={<Switch
+                checked={form.conditions.regular_session_only} disabled={busy}
+                onChange={(_, value) => condition("regular_session_only", value)} />} />
+              {priceRule && <FormControlLabel label="Solo attraversamento della soglia" control={<Switch
+                checked={form.conditions.crossing_only} disabled={busy}
+                onChange={(_, value) => condition("crossing_only", value)} />} />}
+              <FormControlLabel label="Un alert per strumento, sessione e direzione" control={<Switch
+                checked={form.conditions.once_per_session} disabled={busy}
+                onChange={(_, value) => condition("once_per_session", value)} />} />
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                 {form.alert_type === "MARKET_SIGNAL" && thresholds.map(([key, label, min, max, step]) => (
                   <TextField key={key} required type="number" label={label} disabled={busy}
@@ -419,7 +458,7 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                 {priceRule && <>
                   <TextField required type="number" label={form.alert_type === "PERCENT_MOVE" ? "Variazione (%)" : "Prezzo soglia"}
                     disabled={busy} value={Number.isFinite(form.conditions.threshold) ? form.conditions.threshold : ""}
-                    slotProps={{ htmlInput: { min: 0, max: 1e15, step: "any" } }}
+                    slotProps={{ htmlInput: { min: Number.MIN_VALUE, max: 1e15, step: "any" } }}
                     onChange={event => condition("threshold", event.target.value === "" ? NaN : Number(event.target.value))} />
                   <TextField select label="Condizione" value={form.conditions.price_direction ?? "UP"} disabled={busy}
                     onChange={event => condition("price_direction", event.target.value as AlertConditions["price_direction"])}>
@@ -439,6 +478,8 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                 <FormControlLabel label="Attiva" control={<Switch checked={form.enabled} disabled={busy}
                   onChange={(_, enabled) => setForm({ ...form, enabled })} />} />
               </Box>
+              <InstrumentAlertOverrides value={form.conditions.instrument_overrides}
+                onChange={value => condition("instrument_overrides", value)} alertType={form.alert_type} disabled={busy} />
             </Stack>
           </DialogContent>
           <DialogActions>

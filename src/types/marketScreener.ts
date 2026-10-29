@@ -1,5 +1,35 @@
 export type PortfolioMatchType = "EXACT_INSTRUMENT" | "SAME_ISIN" | "SAME_ENTITY" | "NO_MATCH";
 export type ConsensusDirection = "LONG" | "SHORT" | "CONFLICT" | "NEUTRAL";
+export interface ScreenerPerformanceFilters {
+	instrument_id?: string;
+	strategy_code?: string;
+	status?: "OPEN" | "CLOSED";
+	limit?: number;
+	offset?: number;
+}
+export interface ScreenerPerformance {
+	performance_id: string;
+	signal_id: string;
+	instrument_id: string;
+	symbol: string;
+	exchange: string | null;
+	currency_code: string | null;
+	strategy_code: string;
+	timeframe: string;
+	direction: "LONG" | "SHORT";
+	status: "OPEN" | "CLOSED";
+	end_reason: string | null;
+	entry_at: string;
+	exit_at: string | null;
+	entry_price: number | null;
+	valuation_price: number | null;
+	entry_price_at: string | null;
+	valuation_price_at: string | null;
+	entry_price_source: string | null;
+	valuation_price_source: string | null;
+	historical_backfill: boolean;
+	return_pct: number | null;
+}
 export interface ScreenerSignalEvent {
 	signal_event_id: string;
 	signal_id: string;
