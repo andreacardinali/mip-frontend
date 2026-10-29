@@ -12,13 +12,25 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useAuth } from "../contexts/AuthProvider";
 import { getAlertRules, saveAlertRule } from "../services/alerts";
+import { getWatchlists } from "../services/watchlists";
+import { getPortfolios } from "../services/portfolios";
 import type { AlertConditions, AlertRule, AlertRulePayload } from "../services/alerts";
+
+const alertTypes = {
+  MARKET_SIGNAL: "Segnale di mercato", FIXED_PRICE: "Soglia di prezzo",
+  PERCENT_MOVE: "Variazione percentuale", SIGNAL_CHANGE: "Cambio del segnale",
+};
+const scopes = {
+  SCREENER: "Screener", WATCHLIST: "Watchlist", PORTFOLIO: "Portafoglio", ALL: "Tutti gli ambiti",
+};
 
 function emptyRule(): AlertRulePayload {
   return {
+    alert_type: "MARKET_SIGNAL",
     name: "", severity: "MEDIUM", channel: null, cooldown_minutes: 240, enabled: true,
     conditions: {
-      symbols: [], directions: [], verdicts: [], origins: [], strategy_codes: [],
+      scope: "SCREENER", max_age_minutes: 60,
+      symbols: [], excluded_symbols: [], directions: [], verdicts: [], origins: [], strategy_codes: [],
       min_composite_score: 0.75, min_consensus_score: 0, max_conflict_score: 1,
       min_strategy_count: 1,
     },
@@ -26,7 +38,8 @@ function emptyRule(): AlertRulePayload {
 }
 
 const filters = [
-  ["symbols", "Simboli"], ["directions", "Direzioni"], ["verdicts", "Verdetti"],
+  ["symbols", "Simboli"], ["excluded_symbols", "Simboli esclusi"],
+  ["directions", "Direzioni"], ["verdicts", "Verdetti"],
   ["origins", "Origini"], ["strategy_codes", "Strategie di supporto"],
 ] as const;
 const thresholds = [
@@ -47,10 +60,23 @@ export default function AlertRuleSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const priceRule = form.alert_type === "FIXED_PRICE" || form.alert_type === "PERCENT_MOVE";
+  const collections = useQuery({
+    queryKey: ["alert-collections", user?.user_id, form.conditions.scope],
+    enabled: !!user && open && (form.conditions.scope === "WATCHLIST" || form.conditions.scope === "PORTFOLIO"),
+    queryFn: async (): Promise<{ id: string; name: string }[]> => {
+      if (form.conditions.scope === "WATCHLIST") {
+        const rows: { watchlist_id: string; name: string }[] = await getWatchlists();
+        return rows.map(row => ({ id: row.watchlist_id, name: row.name }));
+      }
+      return (await getPortfolios()).map(row => ({ id: row.portfolio_id, name: row.name }));
+    },
+  });
 
   function edit(rule?: AlertRule) {
     const defaults = emptyRule();
     setForm(rule ? {
+      alert_type: rule.alert_type,
       name: rule.name, severity: rule.severity, channel: rule.channel,
       cooldown_minutes: rule.cooldown_minutes, enabled: rule.enabled,
       conditions: { ...defaults.conditions, ...rule.conditions },
@@ -63,6 +89,19 @@ export default function AlertRuleSettings() {
 
   function condition<Key extends keyof AlertConditions>(key: Key, value: AlertConditions[Key]) {
     setForm(previous => ({ ...previous, conditions: { ...previous.conditions, [key]: value } }));
+  }
+
+  function changeType(alert_type: AlertRulePayload["alert_type"]) {
+    setForm(previous => {
+      const conditions = { ...previous.conditions };
+      delete conditions.threshold;
+      delete conditions.price_direction;
+      if (alert_type === "FIXED_PRICE" || alert_type === "PERCENT_MOVE") {
+        conditions.threshold = NaN;
+        conditions.price_direction = alert_type === "PERCENT_MOVE" ? "ANY" : "UP";
+      }
+      return { ...previous, alert_type, conditions };
+    });
   }
 
   async function save(event: React.SubmitEvent<HTMLFormElement>) {
@@ -104,7 +143,7 @@ export default function AlertRuleSettings() {
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ overflowWrap: "anywhere" }}>{rule.name}</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
-              {rule.enabled ? "Attiva" : "Disattivata"} · {rule.severity} · {rule.cooldown_minutes} min
+              {rule.enabled ? "Attiva" : "Disattivata"} · {alertTypes[rule.alert_type]} · {scopes[rule.conditions.scope ?? "SCREENER"]} · {rule.severity} · {rule.cooldown_minutes} min
             </Typography>
           </Box>
           <Tooltip title="Modifica regola">
@@ -122,6 +161,32 @@ export default function AlertRuleSettings() {
                 slotProps={{ htmlInput: { maxLength: 160, pattern: ".*\\S.*" } }}
                 onChange={event => setForm({ ...form, name: event.target.value })} />
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TextField select fullWidth label="Tipo di alert" value={form.alert_type} disabled={busy}
+                  onChange={event => changeType(event.target.value as AlertRulePayload["alert_type"])}>
+                  {Object.entries(alertTypes).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+                </TextField>
+                <TextField select fullWidth label="Ambito" value={form.conditions.scope} disabled={busy}
+                  onChange={event => setForm(previous => ({ ...previous, conditions: {
+                    ...previous.conditions, scope: event.target.value as AlertConditions["scope"], scope_id: undefined,
+                  } }))}>
+                  {Object.entries(scopes).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+                </TextField>
+              </Stack>
+              {(form.conditions.scope === "WATCHLIST" || form.conditions.scope === "PORTFOLIO") && (
+                <TextField select fullWidth label="Collezione" value={form.conditions.scope_id ?? ""}
+                  disabled={busy || collections.isPending || collections.isError}
+                  onChange={event => condition("scope_id", event.target.value || undefined)}>
+                  <MenuItem value="">Tutte le mie collezioni</MenuItem>
+                  {form.conditions.scope_id && !collections.data?.some(row => row.id === form.conditions.scope_id) && (
+                    <MenuItem value={form.conditions.scope_id}>Collezione non disponibile</MenuItem>
+                  )}
+                  {collections.data?.map(row => <MenuItem key={row.id} value={row.id}>{row.name}</MenuItem>)}
+                </TextField>
+              )}
+              {collections.isError && <Alert severity="error" action={
+                <IconButton aria-label="Riprova collezioni" onClick={() => void collections.refetch()}><RefreshIcon /></IconButton>
+              }>Impossibile caricare le collezioni.</Alert>}
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField select fullWidth label="Severita" value={form.severity} disabled={busy}
                   onChange={event => setForm({ ...form, severity: event.target.value as AlertRulePayload["severity"] })}>
                   {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}
@@ -132,19 +197,35 @@ export default function AlertRuleSettings() {
                   <MenuItem value="TELEGRAM">Telegram</MenuItem>
                 </TextField>
               </Stack>
-              {filters.map(([key, label]) => (
+              {filters.filter(([key]) => !priceRule || key === "symbols" || key === "excluded_symbols").map(([key, label]) => (
                 <Autocomplete key={key} multiple freeSolo autoSelect options={Array.from(new Set(rules.data?.flatMap(rule => rule.conditions[key] ?? []) ?? []))}
                   value={form.conditions[key]} disabled={busy}
                   onChange={(_, values) => condition(key, values.map(value => value.trim().toUpperCase()).filter(Boolean))}
                   renderInput={params => <TextField {...params} label={label} />} />
               ))}
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                {thresholds.map(([key, label, min, max, step]) => (
+                {form.alert_type === "MARKET_SIGNAL" && thresholds.map(([key, label, min, max, step]) => (
                   <TextField key={key} required type="number" label={label} disabled={busy}
                     value={Number.isNaN(form.conditions[key]) ? "" : form.conditions[key]}
                     slotProps={{ htmlInput: { min, max, step } }}
                     onChange={event => condition(key, event.target.value === "" ? NaN : Number(event.target.value))} />
                 ))}
+                {priceRule && <>
+                  <TextField required type="number" label={form.alert_type === "PERCENT_MOVE" ? "Variazione (%)" : "Prezzo soglia"}
+                    disabled={busy} value={Number.isFinite(form.conditions.threshold) ? form.conditions.threshold : ""}
+                    slotProps={{ htmlInput: { min: 0, max: 1e15, step: "any" } }}
+                    onChange={event => condition("threshold", event.target.value === "" ? NaN : Number(event.target.value))} />
+                  <TextField select label="Condizione" value={form.conditions.price_direction ?? "UP"} disabled={busy}
+                    onChange={event => condition("price_direction", event.target.value as AlertConditions["price_direction"])}>
+                    <MenuItem value="UP">{form.alert_type === "FIXED_PRICE" ? "Prezzo maggiore o uguale" : "Rialzo"}</MenuItem>
+                    <MenuItem value="DOWN">{form.alert_type === "FIXED_PRICE" ? "Prezzo minore o uguale" : "Ribasso"}</MenuItem>
+                    {form.alert_type === "PERCENT_MOVE" && <MenuItem value="ANY">Entrambe le direzioni</MenuItem>}
+                  </TextField>
+                </>}
+                <TextField required type="number" label="Eta massima dati (minuti)" disabled={busy}
+                  value={Number.isNaN(form.conditions.max_age_minutes) ? "" : form.conditions.max_age_minutes}
+                  slotProps={{ htmlInput: { min: 1, max: 10080, step: 1 } }}
+                  onChange={event => condition("max_age_minutes", event.target.value === "" ? NaN : Number(event.target.value))} />
                 <TextField required type="number" label="Cooldown (minuti)" disabled={busy}
                   value={Number.isNaN(form.cooldown_minutes) ? "" : form.cooldown_minutes}
                   slotProps={{ htmlInput: { min: 0, max: 2147483647, step: 1 } }}

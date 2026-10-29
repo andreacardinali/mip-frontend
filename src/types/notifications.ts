@@ -1,7 +1,11 @@
 export type NotificationType =
   | "UPCOMING_CATALYST"
   | "BREAKING_CATALYST"
-  | "DAILY_MOVER";
+  | "DAILY_MOVER"
+  | "MARKET_SIGNAL"
+  | "FIXED_PRICE"
+  | "PERCENT_MOVE"
+  | "SIGNAL_CHANGE";
 
 export type NotificationPreference = {
   notification_type: NotificationType;
