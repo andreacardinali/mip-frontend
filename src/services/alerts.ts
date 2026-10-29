@@ -48,6 +48,7 @@ export interface AlertEvent {
   created_at: string;
   notification_id: string | null;
   notification_status: string | null;
+  notification_skip_reason?: string | null;
   sent_at: string | null;
   payload: {
     rule_name?: string;

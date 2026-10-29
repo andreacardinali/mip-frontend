@@ -31,6 +31,12 @@ const notificationStatuses: Record<string, string> = {
   PENDING: "In coda", PROCESSING: "In invio", RETRY: "Nuovo tentativo",
   SENT: "Inviata", FAILED: "Invio fallito",
 };
+const notificationSkipReasons: Record<string, string> = {
+  DISABLED: "Notifiche disabilitate",
+  PREFERENCE_DISABLED: "Disabilitata nelle preferenze",
+  SOURCE_NOT_FOUND: "Nessuna destinazione disponibile",
+  DUPLICATE: "Notifica duplicata",
+};
 
 function formatTimestamp(value?: string | null) {
   if (!value) return "-";
@@ -217,6 +223,9 @@ export default function AlertRuleSettings() {
                     : event.notification_id ? "Stato non disponibile" : "Non accodata"}
                     color={event.notification_status === "SENT" ? "success" : event.notification_status === "FAILED" ? "error" : "default"} />
                 </Stack>
+                {!event.notification_id && event.notification_skip_reason && <Typography variant="body2" color="text.secondary">
+                  {notificationSkipReasons[event.notification_skip_reason] ?? event.notification_skip_reason}
+                </Typography>}
                 <Typography variant="body2" color="text.secondary">
                   {payload.rule_name ?? "-"} · {alertTypes[type]} · {scopes[payload.scope ?? "SCREENER"]}
                 </Typography>
