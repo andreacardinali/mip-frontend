@@ -28,6 +28,7 @@ import type { GridRowSelectionModel } from "@mui/x-data-grid";
 
 import PriceDisplay from "../components/PriceDisplay";
 import CurrencySelect from "../components/CurrencySelect";
+import AlertRuleSettings from "../components/AlertRuleSettings";
 import { deletePosition, getPositions, savePosition } from "../services/positions";
 import { getPortfolioSummary } from "../services/portfolios";
 import { searchAssets } from "../services/search";
@@ -517,6 +518,8 @@ export default function PortfolioDetailsPage() {
           ]}
         />
       </Paper>
+
+      {id && <AlertRuleSettings key={id} context={{ scope: "PORTFOLIO", scopeId: id }} />}
 
       <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="md">
         <Box

@@ -8,13 +8,26 @@ visible columns. API filters currently load at most 500 opportunities; this is
 not a full-database export. No additional endpoint or database routine is used.
 CSV files use UTF-8 with BOM and formula escaping for spreadsheet safety.
 
+## Contextual Monitoring
+
+Watchlist and portfolio detail pages reuse the account alert rule component for
+rules dedicated to the current collection. New rules default to that collection;
+scope and collection cannot be changed from the contextual editor. Screener shows
+rules scoped to Screener, including older rules with no explicit scope. Account
+settings remain the complete view for global rules and rules across collections.
+Contextual views share the user-scoped React Query cache, saving API and event
+history with account settings. Navigating between collections resets editor and
+history state. No additional API or database installation is required beyond the
+existing monitoring installers.
+
 ## Alert Event History
 
 Account alert rules include a history action with 25 events per page, refresh,
 loading, empty and retry states. The shared alert service calls the authenticated
 `/alerts/{rule_id}/events` endpoint; React Query caches by user, rule and offset.
 History displays saved signal or price context and current notification status.
-Events without a notification are shown as not queued, without an inferred cause.
+Events without a notification are shown as not queued, with the saved skip reason
+when available. Older events retain an unknown reason.
 Cooldown and duplicate matches do not create history entries. Refresh returns
 to the latest page; new events can shift offset-based pages.
 

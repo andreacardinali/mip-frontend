@@ -74,11 +74,19 @@ const thresholds = [
   ["min_strategy_count", "Numero minimo di strategie", 1, 2147483647, 1],
 ] as const;
 
-export default function AlertRuleSettings() {
+type AlertRuleSettingsProps = {
+  context?: { scope: "SCREENER" } | { scope: "WATCHLIST" | "PORTFOLIO"; scopeId: string };
+};
+
+export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const queryKey = ["alert-rules", user?.user_id];
   const rules = useQuery({ queryKey, queryFn: getAlertRules, enabled: !!user });
+  const visibleRules = rules.data?.filter(rule => !context || (
+    (rule.conditions.scope ?? "SCREENER") === context.scope &&
+    (context.scope === "SCREENER" || rule.conditions.scope_id === context.scopeId)
+  ));
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string>();
   const [form, setForm] = useState<AlertRulePayload>(emptyRule);
@@ -107,6 +115,10 @@ export default function AlertRuleSettings() {
 
   function edit(rule?: AlertRule) {
     const defaults = emptyRule();
+    if (context) {
+      defaults.conditions.scope = context.scope;
+      if (context.scope !== "SCREENER") defaults.conditions.scope_id = context.scopeId;
+    }
     setForm(rule ? {
       alert_type: rule.alert_type,
       name: rule.name, severity: rule.severity, channel: rule.channel,
@@ -168,8 +180,8 @@ export default function AlertRuleSettings() {
           <Tooltip title="Riprova"><IconButton onClick={() => void rules.refetch()} aria-label="Riprova"><RefreshIcon /></IconButton></Tooltip>
         }>Impossibile caricare le regole di alert.</Alert>
       )}
-      {rules.isSuccess && !rules.data.length && <Typography color="text.secondary">Nessuna regola.</Typography>}
-      {rules.data?.map(rule => (
+      {rules.isSuccess && !visibleRules?.length && <Typography color="text.secondary">Nessuna regola.</Typography>}
+      {visibleRules?.map(rule => (
         <Stack key={rule.rule_id} direction="row" spacing={2}
           sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", minWidth: 0, alignItems: "center" }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -280,7 +292,7 @@ export default function AlertRuleSettings() {
                   onChange={event => changeType(event.target.value as AlertRulePayload["alert_type"])}>
                   {Object.entries(alertTypes).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
                 </TextField>
-                <TextField select fullWidth label="Ambito" value={form.conditions.scope} disabled={busy}
+                <TextField select fullWidth label="Ambito" value={form.conditions.scope} disabled={busy || !!context}
                   onChange={event => setForm(previous => ({ ...previous, conditions: {
                     ...previous.conditions, scope: event.target.value as AlertConditions["scope"], scope_id: undefined,
                   } }))}>
@@ -289,7 +301,7 @@ export default function AlertRuleSettings() {
               </Stack>
               {(form.conditions.scope === "WATCHLIST" || form.conditions.scope === "PORTFOLIO") && (
                 <TextField select fullWidth label="Collezione" value={form.conditions.scope_id ?? ""}
-                  disabled={busy || collections.isPending || collections.isError}
+                  disabled={busy || !!context || collections.isPending || collections.isError}
                   onChange={event => condition("scope_id", event.target.value || undefined)}>
                   <MenuItem value="">Tutte le mie collezioni</MenuItem>
                   {form.conditions.scope_id && !collections.data?.some(row => row.id === form.conditions.scope_id) && (

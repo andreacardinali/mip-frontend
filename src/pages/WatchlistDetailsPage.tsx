@@ -24,6 +24,7 @@ import { DataGrid } from "@mui/x-data-grid";
 import type { GridRowModel, GridRowSelectionModel } from "@mui/x-data-grid";
 
 import PriceDisplay from "../components/PriceDisplay";
+import AlertRuleSettings from "../components/AlertRuleSettings";
 import {
   deleteWatchlistItem,
   getWatchlistItems,
@@ -283,6 +284,8 @@ export default function WatchlistDetailsPage() {
           ]}
         />
       </Paper>
+
+      {id && <AlertRuleSettings key={id} context={{ scope: "WATCHLIST", scopeId: id }} />}
 
       <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="md">
         <Box

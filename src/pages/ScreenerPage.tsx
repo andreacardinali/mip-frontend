@@ -22,6 +22,7 @@ import {
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef } from "@mui/x-data-grid";
 import { useQuery } from "@tanstack/react-query";
+import AlertRuleSettings from "../components/AlertRuleSettings";
 
 import {
   getScreenerOpportunities,
@@ -476,6 +477,8 @@ export default function ScreenerPage() {
           disableRowSelectionOnClick
         />
       </Paper>
+
+      <AlertRuleSettings context={{ scope: "SCREENER" }} />
 
       <Dialog
         open={Boolean(selectedId)}
