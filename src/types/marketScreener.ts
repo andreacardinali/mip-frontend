@@ -1,5 +1,22 @@
 export type PortfolioMatchType = "EXACT_INSTRUMENT" | "SAME_ISIN" | "SAME_ENTITY" | "NO_MATCH";
 export type ConsensusDirection = "LONG" | "SHORT" | "CONFLICT" | "NEUTRAL";
+export interface ScreenerSignalEvent {
+	signal_event_id: string;
+	signal_id: string;
+	instrument_id: string;
+	strategy_code: string;
+	timeframe: string;
+	previous_status: string | null;
+	new_status: string;
+	previous_direction: string | null;
+	new_direction: string;
+	event_type: string;
+	reason: string | null;
+	observed_at: string;
+	created_at: string;
+	updated_at: string;
+	payload: Record<string, unknown>;
+}
 export interface ScreenerInstrument { instrument_id:string; symbol:string; exchange:string|null; currency_code:string|null; isin:string|null; is_source?:boolean; same_isin?:boolean; }
 export interface ScreenerPortfolioPosition { position_id:string; portfolio_id:string; portfolio_name:string; instrument_id:string; symbol:string; exchange:string|null; currency_code:string|null; isin:string|null; quantity:number|string; match_type:Exclude<PortfolioMatchType,"NO_MATCH">; }
 export interface StrategyConsensus { strategy_count:number; bullish_strategy_count:number; bearish_strategy_count:number; consensus_direction:ConsensusDirection; consensus_score:number; conflict_score:number; supporting_strategies:string[]; opposing_strategies:string[]; supporting_signal_ids?:string[]; }

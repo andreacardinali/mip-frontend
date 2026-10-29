@@ -11,10 +11,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   MenuItem,
   Paper,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
@@ -25,6 +27,7 @@ import {
   getScreenerOpportunities,
   getScreenerOpportunity,
   getScreenerRuns,
+  getScreenerSignalEvents,
   getScreenerSnapshots,
   getScreenerSnapshotItems,
 } from "../services/marketScreener";
@@ -32,6 +35,7 @@ import type {
   ConsensusDirection,
   PortfolioMatchType,
   ScreenerOpportunity,
+  ScreenerSignalEvent,
   ScreenerSnapshotItem,
 } from "../types/marketScreener";
 
@@ -122,6 +126,12 @@ export default function ScreenerPage() {
     queryKey: ["market-screener-detail", selectedId],
     queryFn: () => getScreenerOpportunity(selectedId ?? ""),
     enabled: Boolean(selectedId),
+  });
+
+  const signalEventsQuery = useQuery({
+    queryKey: ["market-screener-signal-events", selectedId],
+    queryFn: () => getScreenerSignalEvents(selectedId ?? ""),
+    enabled: Boolean(selectedId && detailQuery.data),
   });
 
   const runsQuery = useQuery({
@@ -513,6 +523,54 @@ export default function ScreenerPage() {
                   {JSON.stringify(selected.technical_evidence ?? {}, null, 2)}
                 </Box>
               </Paper>
+
+              <Box sx={{ minWidth: 0 }}>
+                <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                  <Typography variant="h6">Storico segnali</Typography>
+                  <Tooltip title="Aggiorna storico segnali">
+                    <span>
+                      <IconButton
+                        aria-label="Aggiorna storico segnali"
+                        disabled={signalEventsQuery.isFetching}
+                        onClick={() => void signalEventsQuery.refetch()}
+                      >
+                        <RefreshIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Stack>
+                {signalEventsQuery.isError ? (
+                  <Alert severity="error">Impossibile caricare lo storico segnali.</Alert>
+                ) : signalEventsQuery.isLoading ? (
+                  <Typography>Caricamento...</Typography>
+                ) : !signalEventsQuery.data?.length ? (
+                  <Typography color="text.secondary">Nessun evento registrato.</Typography>
+                ) : (
+                  <Box sx={{ height: 360, width: "100%" }}>
+                    <DataGrid<ScreenerSignalEvent>
+                      rows={signalEventsQuery.data}
+                      getRowId={(row) => row.signal_event_id}
+                      loading={signalEventsQuery.isFetching}
+                      columns={[
+                        { field: "observed_at", headerName: "Data", width: 180,
+                          renderCell: ({ row }) => new Date(row.observed_at).toLocaleString("it-IT") },
+                        { field: "strategy_code", headerName: "Strategia", width: 150 },
+                        { field: "timeframe", headerName: "Timeframe", width: 100 },
+                        { field: "event_type", headerName: "Evento", width: 190 },
+                        { field: "new_status", headerName: "Stato", width: 220,
+                          renderCell: ({ row }) => `${row.previous_status ?? "N/D"} -> ${row.new_status}` },
+                        { field: "new_direction", headerName: "Direzione", width: 190,
+                          renderCell: ({ row }) => `${row.previous_direction ?? "N/D"} -> ${row.new_direction}` },
+                        { field: "reason", headerName: "Motivo", minWidth: 220, flex: 1 },
+                      ]}
+                      initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+                      pageSizeOptions={[10, 25, 100]}
+                      disableRowSelectionOnClick
+                      disableColumnSorting
+                    />
+                  </Box>
+                )}
+              </Box>
 
               <Box>
                 <Typography variant="h6">Strumento analizzato</Typography>
