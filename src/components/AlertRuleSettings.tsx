@@ -1,17 +1,20 @@
 import { useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import HistoryIcon from "@mui/icons-material/History";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import {
-  Alert, Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions,
+  Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions,
   DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem,
   Stack, Switch, TextField, Tooltip, Typography,
 } from "@mui/material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useAuth } from "../contexts/AuthProvider";
-import { getAlertRules, saveAlertRule } from "../services/alerts";
+import { getAlertEvents, getAlertRules, saveAlertRule } from "../services/alerts";
 import { getWatchlists } from "../services/watchlists";
 import { getPortfolios } from "../services/portfolios";
 import type { AlertConditions, AlertRule, AlertRulePayload } from "../services/alerts";
@@ -23,6 +26,22 @@ const alertTypes = {
 const scopes = {
   SCREENER: "Screener", WATCHLIST: "Watchlist", PORTFOLIO: "Portafoglio", ALL: "Tutti gli ambiti",
 };
+const historyPageSize = 25;
+const notificationStatuses: Record<string, string> = {
+  PENDING: "In coda", PROCESSING: "In invio", RETRY: "Nuovo tentativo",
+  SENT: "Inviata", FAILED: "Invio fallito",
+};
+
+function formatTimestamp(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("it-IT");
+}
+
+function formatNumber(value?: number | null) {
+  return value != null && Number.isFinite(value)
+    ? value.toLocaleString("it-IT", { maximumFractionDigits: 6 }) : "-";
+}
 
 function emptyRule(): AlertRulePayload {
   return {
@@ -60,6 +79,13 @@ export default function AlertRuleSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [historyRule, setHistoryRule] = useState<AlertRule | null>(null);
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const history = useQuery({
+    queryKey: ["alert-events", user?.user_id, historyRule?.rule_id, historyOffset],
+    queryFn: () => getAlertEvents(historyRule?.rule_id ?? "", historyPageSize + 1, historyOffset),
+    enabled: !!user && !!historyRule,
+  });
   const priceRule = form.alert_type === "FIXED_PRICE" || form.alert_type === "PERCENT_MOVE";
   const collections = useQuery({
     queryKey: ["alert-collections", user?.user_id, form.conditions.scope],
@@ -146,11 +172,91 @@ export default function AlertRuleSettings() {
               {rule.enabled ? "Attiva" : "Disattivata"} · {alertTypes[rule.alert_type]} · {scopes[rule.conditions.scope ?? "SCREENER"]} · {rule.severity} · {rule.cooldown_minutes} min
             </Typography>
           </Box>
+          <Tooltip title="Storico alert">
+            <IconButton aria-label={`Storico ${rule.name}`} onClick={() => {
+              setHistoryOffset(0);
+              setHistoryRule(rule);
+            }}><HistoryIcon /></IconButton>
+          </Tooltip>
           <Tooltip title="Modifica regola">
             <IconButton aria-label={`Modifica ${rule.name}`} onClick={() => edit(rule)}><EditIcon /></IconButton>
           </Tooltip>
         </Stack>
       ))}
+      <Dialog open={!!historyRule && !!user} onClose={() => setHistoryRule(null)} fullWidth maxWidth="md">
+        <DialogTitle sx={{ overflowWrap: "anywhere" }}>Storico alert: {historyRule?.name}</DialogTitle>
+        <DialogContent>
+          <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 1 }}>
+            <Tooltip title="Aggiorna storico">
+              <IconButton aria-label="Aggiorna storico" disabled={history.isFetching} onClick={() => {
+                if (historyOffset === 0) void history.refetch();
+                else setHistoryOffset(0);
+              }}><RefreshIcon /></IconButton>
+            </Tooltip>
+          </Stack>
+          {history.isPending && <CircularProgress size={24} aria-label="Caricamento storico" />}
+          {history.isError && <Alert severity="error" action={
+            <IconButton aria-label="Riprova storico" onClick={() => void history.refetch()}><RefreshIcon /></IconButton>
+          }>Impossibile caricare lo storico degli alert.</Alert>}
+          {history.isSuccess && !history.data.length && (
+            <Typography color="text.secondary">Nessun evento registrato in questa pagina.</Typography>
+          )}
+          {history.isSuccess && history.data.slice(0, historyPageSize).map(event => {
+            const payload = event.payload;
+            const type = payload.alert_type ?? "MARKET_SIGNAL";
+            const priceEvent = type === "FIXED_PRICE" || type === "PERCENT_MOVE";
+            const change = payload.last_price != null && payload.reference_price != null && payload.reference_price > 0
+              ? (payload.last_price / payload.reference_price - 1) * 100 : null;
+            return (
+              <Box key={event.alert_event_id} sx={{ py: 2, borderBottom: 1, borderColor: "divider", overflowWrap: "anywhere" }}>
+                <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
+                  <Typography sx={{ fontWeight: 600 }}>{payload.symbol ?? "-"}</Typography>
+                  <Typography variant="body2" color="text.secondary">{formatTimestamp(event.created_at)}</Typography>
+                  <Chip size="small" label={event.notification_status
+                    ? notificationStatuses[event.notification_status] ?? event.notification_status
+                    : event.notification_id ? "Stato non disponibile" : "Non accodata"}
+                    color={event.notification_status === "SENT" ? "success" : event.notification_status === "FAILED" ? "error" : "default"} />
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {payload.rule_name ?? "-"} · {alertTypes[type]} · {scopes[payload.scope ?? "SCREENER"]}
+                </Typography>
+                {priceEvent ? <>
+                  <Typography variant="body2">Prezzo: {formatNumber(payload.last_price)}</Typography>
+                  {type === "PERCENT_MOVE" && <Typography variant="body2">
+                    Riferimento: {formatNumber(payload.reference_price)} · Variazione: {formatNumber(change)}%
+                  </Typography>}
+                  {payload.reference_at && <Typography variant="body2" color="text.secondary">
+                    Riferimento del {formatTimestamp(payload.reference_at)}
+                  </Typography>}
+                </> : <>
+                  <Typography variant="body2">{[payload.event_type, payload.direction, payload.verdict].filter(Boolean).join(" · ") || "-"}</Typography>
+                  {type === "MARKET_SIGNAL" && <Typography variant="body2">
+                    Score: {formatNumber(payload.composite_score)} · Consenso: {formatNumber(payload.consensus_score)}
+                  </Typography>}
+                  {!!payload.strategy_codes?.length && <Typography variant="body2">Strategie: {payload.strategy_codes.join(", ")}</Typography>}
+                </>}
+                {payload.observed_at && <Typography variant="body2" color="text.secondary">Osservato: {formatTimestamp(payload.observed_at)}</Typography>}
+                {event.sent_at && <Typography variant="body2" color="text.secondary">Inviata: {formatTimestamp(event.sent_at)}</Typography>}
+                {!priceEvent && payload.summary && <Typography variant="body2" sx={{ mt: 1, whiteSpace: "pre-wrap" }}>{payload.summary}</Typography>}
+              </Box>
+            );
+          })}
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "space-between" }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+            <Tooltip title="Pagina precedente"><span>
+              <IconButton aria-label="Pagina precedente" disabled={historyOffset === 0 || history.isFetching}
+                onClick={() => setHistoryOffset(previous => Math.max(0, previous - historyPageSize))}><ChevronLeftIcon /></IconButton>
+            </span></Tooltip>
+            <Typography variant="body2">Pagina {Math.floor(historyOffset / historyPageSize) + 1}</Typography>
+            <Tooltip title="Pagina successiva"><span>
+              <IconButton aria-label="Pagina successiva" disabled={!history.isSuccess || history.isFetching || history.data.length <= historyPageSize || historyOffset >= 100000}
+                onClick={() => setHistoryOffset(previous => previous + historyPageSize)}><ChevronRightIcon /></IconButton>
+            </span></Tooltip>
+          </Stack>
+          <Button onClick={() => setHistoryRule(null)}>Chiudi</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={open} onClose={() => { if (!busy) setOpen(false); }} fullWidth maxWidth="sm">
         <Box component="form" onSubmit={save}>
           <DialogTitle>{editingId ? "Modifica regola" : "Nuova regola"}</DialogTitle>

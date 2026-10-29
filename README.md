@@ -8,6 +8,20 @@ visible columns. API filters currently load at most 500 opportunities; this is
 not a full-database export. No additional endpoint or database routine is used.
 CSV files use UTF-8 with BOM and formula escaping for spreadsheet safety.
 
+## Alert Event History
+
+Account alert rules include a history action with 25 events per page, refresh,
+loading, empty and retry states. The shared alert service calls the authenticated
+`/alerts/{rule_id}/events` endpoint; React Query caches by user, rule and offset.
+History displays saved signal or price context and current notification status.
+Events without a notification are shown as not queued, without an inferred cause.
+Cooldown and duplicate matches do not create history entries. Refresh returns
+to the latest page; new events can shift offset-based pages.
+
+The backend requires manual installation of
+`oneshot/install_alert_event_history.sql`, after the alert management and
+collection monitoring installers. No automatic migration is run.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
