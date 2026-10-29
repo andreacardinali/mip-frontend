@@ -32,6 +32,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import CurrencySelect from "../components/CurrencySelect";
+import AlertRuleSettings from "../components/AlertRuleSettings";
 import { useAuth } from "../contexts/AuthProvider";
 import { updateAccountPreferences } from "../services/auth";
 import {
@@ -266,6 +267,8 @@ export default function SettingsPage() {
       <Stack spacing={3}>
         {message && <Alert severity="success">{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
+
+        <AlertRuleSettings />
 
         <Paper variant="outlined" sx={{ p: 3 }}>
           <Stack spacing={2.5}>
