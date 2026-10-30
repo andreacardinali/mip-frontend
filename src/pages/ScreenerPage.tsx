@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 
 import HistoryIcon from "@mui/icons-material/History";
 import ShowChartIcon from "@mui/icons-material/ShowChart";
@@ -21,6 +21,7 @@ import {
   DialogTitle,
   IconButton,
   FormControlLabel,
+  Link,
   MenuItem,
   Paper,
   Stack,
@@ -118,7 +119,13 @@ export default function ScreenerPage() {
   const [consensusDirection, setConsensusDirection] = useState<ConsensusDirection | "">("");
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
   const [minimumScore, setMinimumScore] = useState("0");
-  const [query, setQuery] = useState("");
+  const query = searchParams.get("query") ?? "";
+  const setQuery = (value: string) => setSearchParams(previous => {
+    const next = new URLSearchParams(previous);
+    if (value) next.set("query", value);
+    else next.delete("query");
+    return next;
+  }, { replace: true });
   const contextSelection = searchParams.get("context") ?? "";
   const [llmEnabled, setLlmEnabled] = useState(false);
   const [pageTab, setPageTab] = useState("results");
@@ -313,6 +320,7 @@ export default function ScreenerPage() {
       headerName: "Entità",
       minWidth: 210,
       flex: 1,
+      renderCell: ({ row }) => <Link component={RouterLink} to={`/entities/${row.entity_id}`} onClick={event => event.stopPropagation()}>{row.entity_name}</Link>,
     },
     {
       field: "signal_type",

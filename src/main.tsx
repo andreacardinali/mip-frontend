@@ -7,6 +7,8 @@ import {
 } from "@tanstack/react-query";
 
 import App from "./App";
+import { CssBaseline, ThemeProvider } from "@mui/material";
+import { theme } from "./theme";
 
 
 
@@ -24,11 +26,14 @@ createRoot(
 ).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <PriceRefreshProvider>
-          <App />
-        </PriceRefreshProvider>
-      </AuthProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <AuthProvider>
+          <PriceRefreshProvider>
+            <App />
+          </PriceRefreshProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>
 );

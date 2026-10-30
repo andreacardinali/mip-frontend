@@ -86,14 +86,14 @@ function logColor(level: string) {
   switch (level.toUpperCase()) {
     case "ERROR":
     case "CRITICAL":
-      return "error.light";
+      return "error.main";
 
     case "WARNING":
     case "WARN":
-      return "warning.light";
+      return "warning.main";
 
     case "DEBUG":
-      return "text.disabled";
+      return "text.secondary";
 
     default:
       return "inherit";

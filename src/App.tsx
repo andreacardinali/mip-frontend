@@ -14,6 +14,8 @@ import WatchlistDetailsPage from "./pages/WatchlistDetailsPage";
 import PortfolioDetailsPage from "./pages/PortfolioDetailsPage";
 import SystemSettingsPage from "./pages/SystemSettingsPage";
 import Layout from "./components/Layout";
+import EntitiesPage from "./pages/EntitiesPage";
+import UniversesPage from "./pages/UniversesPage";
 
 export default function App() {
   return (
@@ -23,6 +25,10 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/entities" element={<EntitiesPage />} />
+            <Route path="/entities/:id" element={<EntitiesPage />} />
+            <Route path="/universes" element={<UniversesPage />} />
+            <Route path="/universes/:id" element={<UniversesPage />} />
             <Route path="/watchlists" element={<WatchlistsPage />} />
             <Route path="/portfolios" element={<PortfolioPage />} />
             <Route path="/news" element={<NewsPage />} />
