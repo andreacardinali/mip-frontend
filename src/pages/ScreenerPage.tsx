@@ -637,7 +637,7 @@ export default function ScreenerPage() {
           {directScope ? <Typography sx={{ alignSelf: "center", flex: 1, overflowWrap: "anywhere" }}>
             {directScope === "ENTITY" ? "Entita" : "Strumento"}: {selectedContext?.name ?? searchParams.get("context_name") ?? directContextId}
             {selectedContext && ` (${selectedContext.instrument_count} strumenti)`}
-          </Typography> : <TextField select size="small" label="Ambito di analisi" value={contextSelection}
+          </Typography> : <TextField select size="small" label="Ambito di analisi" value={selectedContext ? contextSelection : ""}
             disabled={analysisPending || contextsQuery.isLoading}
             sx={{ minWidth: 220, flex: 1 }}
             onChange={event => {
