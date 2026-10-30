@@ -111,6 +111,7 @@ export default function ScreenerPage() {
   const [minimumScore, setMinimumScore] = useState("0");
   const [query, setQuery] = useState("");
   const [contextSelection, setContextSelection] = useState("");
+  const [llmEnabled, setLlmEnabled] = useState(false);
   const [strategy, setStrategy] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -573,10 +574,14 @@ export default function ScreenerPage() {
           </TextField>
           <TextField size="small" label="Cerca" value={query}
             sx={{ minWidth: 180, flex: 1 }} onChange={event => setQuery(event.target.value)} />
+          <FormControlLabel control={<Switch checked={llmEnabled}
+            disabled={analysis.isPending || !selectedContext}
+            onChange={event => { setLlmEnabled(event.target.checked); analysis.reset(); }} />} label="Analisi AI" />
           <Button variant="contained" startIcon={<PlayArrowIcon />}
             disabled={analysis.isPending || !selectedContext || selectedContext.instrument_count === 0}
             onClick={() => { if (selectedContext) analysis.mutate({
               context_type: selectedContext.context_type, context_id: selectedContext.context_id,
+              llm_enabled: llmEnabled,
             }); }}>
             {analysis.isPending ? "Analisi in corso..." : "Analizza"}
           </Button>
@@ -676,7 +681,12 @@ export default function ScreenerPage() {
       </Alert>}
       {analysis.isError && <Alert severity="error" sx={{ mb: 2 }}>{analysisError}</Alert>}
       {analysis.isSuccess && <Alert severity={analysis.data.status === "SUCCESS" ? "success" : "warning"} sx={{ mb: 2 }}>
-        {analysis.data.status === "SUCCESS" ? "Analisi completata." : "Analisi parziale: alcuni strumenti non sono stati elaborati."}
+        {analysis.data.status === "SUCCESS" ? "Analisi completata." : "Analisi parziale: alcune elaborazioni non sono state completate."}
+        {analysis.data.llm_enrichment && <Box component="span" sx={{ display: "block" }}>
+          {analysis.data.llm_enrichment.status === "FAILED"
+            ? "AI non disponibile."
+            : `AI: ${analysis.data.llm_enrichment.enriched ?? 0} segnali arricchiti, ${analysis.data.llm_enrichment.failed ?? 0} non elaborati.`}
+        </Box>}
       </Alert>}
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }}>

@@ -7,7 +7,7 @@ export async function getScreenerOpportunities(filters: ScreenerFilters) { retur
 export async function getScreenerContexts() {
 	return (await api.get<ScreenerContext[]>("/screener/contexts")).data;
 }
-export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string }) {
+export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string; llm_enabled?:boolean }) {
 	return (await api.post<ScreenerAnalysisResult>("/screener/analyze", context)).data;
 }
 export async function getScreenerOpportunity(id: string) { return (await api.get<ScreenerOpportunity>(`/screener/${id}`)).data; }
