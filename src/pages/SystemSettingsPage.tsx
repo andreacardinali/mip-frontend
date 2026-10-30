@@ -17,6 +17,7 @@ import {
   CircularProgress,
   FormControlLabel,
   IconButton,
+  Snackbar,
   Stack,
   Switch,
   Table,
@@ -308,7 +309,20 @@ export default function SystemSettingsPage() {
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {message && <Alert severity="success" sx={{ mb: 2 }}>{message}</Alert>}
+      <Snackbar
+        key={message}
+        open={Boolean(message)}
+        autoHideDuration={3000}
+        disableWindowBlurListener
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        onClose={(_, reason) => {
+          if (reason !== "clickaway") setMessage("");
+        }}
+      >
+        <Alert severity="success" variant="filled" onClose={() => setMessage("")} sx={{ width: "100%" }}>
+          {message}
+        </Alert>
+      </Snackbar>
 
         <Box sx={{ mb: 2, flexShrink: 0, borderBottom: 1, borderColor: "divider" }}>
             <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1, flexWrap: "wrap" }}>
