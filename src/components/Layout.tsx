@@ -5,6 +5,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthProvider";
 import { usePriceRefresh } from "../contexts/PriceRefreshProvider";
 import { ThemeModeContext } from "../contexts/ThemeModeContext";
+import NotificationCenter from "./NotificationCenter";
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -57,6 +58,7 @@ export default function Layout() {
               <FormControlLabel control={<Switch checked={enabled} onChange={(_, checked) => setEnabled(checked)} slotProps={{ input: { "aria-label": "Aggiornamento automatico prezzi" } }} />} label="Prezzi live" sx={{ mr: 0, "& .MuiFormControlLabel-label": { fontSize: 13 } }} />
             </Tooltip>
             <Typography variant="body2" sx={{ display: { xs: "none", sm: "block" } }}>{user?.display_name ?? user?.username}</Typography>
+            <NotificationCenter />
             <Tooltip title="Esci"><IconButton aria-label="Esci" onClick={logout}><Logout /></IconButton></Tooltip>
           </Toolbar>
         </AppBar>

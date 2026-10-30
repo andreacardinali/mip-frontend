@@ -1,8 +1,10 @@
 import type { AlertColor } from "@mui/material";
 
 type Feedback = { id: number; message: string; severity: AlertColor };
+type OperationNotification = Feedback & { createdAt: number; read: boolean };
 type TrackedJob = { runId: string; jobKey: string };
 let feedback: Feedback | null = null;
+let notifications: OperationNotification[] = [];
 let sequence = 0;
 const pendingFeedback: Feedback[] = [];
 const listeners = new Set<() => void>();
@@ -16,8 +18,22 @@ export function subscribeFeedback(listener: () => void) {
 
 export function getFeedback() { return feedback; }
 
+export function getOperationNotifications() { return notifications; }
+
+export function markOperationNotificationsRead() {
+  if (notifications.every(notification => notification.read)) return;
+  notifications = notifications.map(notification => ({ ...notification, read: true }));
+  listeners.forEach(listener => listener());
+}
+
+export function clearOperationNotifications() {
+  notifications = [];
+  listeners.forEach(listener => listener());
+}
+
 export function notifyOperation(message: string, severity: AlertColor = "info") {
   const next = { id: ++sequence, message, severity };
+  notifications = [{ ...next, createdAt: Date.now(), read: false }, ...notifications];
   if (feedback) pendingFeedback.push(next);
   else feedback = next;
   listeners.forEach(listener => listener());
