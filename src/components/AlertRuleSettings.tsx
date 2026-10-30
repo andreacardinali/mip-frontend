@@ -19,7 +19,7 @@ import { useAuth } from "../contexts/AuthProvider";
 import { deleteAlertRule, getAlertEvents, getAlertRules, saveAlertRule, setAlertRuleEnabled } from "../services/alerts";
 import { getWatchlists } from "../services/watchlists";
 import { getPortfolios } from "../services/portfolios";
-import { getInstruments } from "../services/instruments";
+import { getScreenerContextInstruments, getScreenerContexts, getScreenerOpportunities } from "../services/marketScreener";
 import { notifyOperationError } from "../services/operationFeedback";
 import InstrumentAlertOverrides from "./InstrumentAlertOverrides";
 import type { AlertConditions, AlertRule, AlertRulePayload } from "../services/alerts";
@@ -110,25 +110,41 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
   const priceRule = form.alert_type === "FIXED_PRICE" || form.alert_type === "PERCENT_MOVE";
   const collections = useQuery({
     queryKey: ["alert-collections", user?.user_id, form.conditions.scope],
-    enabled: !!user && open && (form.conditions.scope === "WATCHLIST" || form.conditions.scope === "PORTFOLIO"),
-    queryFn: async (): Promise<{ id: string; name: string }[]> => {
+    enabled: !!user && open && form.conditions.scope !== "SCREENER",
+    queryFn: async (): Promise<{ id: string; name: string; type: "WATCHLIST" | "PORTFOLIO" }[]> => {
       if (form.conditions.scope === "WATCHLIST") {
         const rows: { watchlist_id: string; name: string }[] = await getWatchlists();
-        return rows.map(row => ({ id: row.watchlist_id, name: row.name }));
+        return rows.map(row => ({ id: row.watchlist_id, name: row.name, type: "WATCHLIST" }));
       }
-      return (await getPortfolios()).map(row => ({ id: row.portfolio_id, name: row.name }));
+      if (form.conditions.scope === "ALL") {
+        return (await getScreenerContexts()).flatMap(row =>
+          row.context_type === "PORTFOLIO" || row.context_type === "WATCHLIST"
+            ? [{ id: row.context_id, name: row.name, type: row.context_type }] : []);
+      }
+      return (await getPortfolios()).map(row => ({ id: row.portfolio_id, name: row.name, type: "PORTFOLIO" }));
     },
   });
-  const instruments = useQuery<{ instrument_id: string; symbol: string }[]>({
-    queryKey: ["instruments"], queryFn: getInstruments, enabled: !!user && open,
+  const instruments = useQuery({
+    queryKey: ["alert-scope-symbols", user?.user_id, form.conditions.scope,
+      form.conditions.scope_id, collections.data?.map(row => [row.type, row.id])],
+    enabled: !!user && open && (form.conditions.scope === "SCREENER" || collections.isSuccess),
+    queryFn: async () => {
+      const scope = form.conditions.scope;
+      const selectedCollections = (collections.data ?? []).filter(row =>
+        !form.conditions.scope_id || row.id === form.conditions.scope_id);
+      const groups = await Promise.all(selectedCollections.map(row =>
+        getScreenerContextInstruments(row.type, row.id)));
+      const opportunities = scope === "SCREENER" || scope === "ALL"
+        ? await getScreenerOpportunities({ limit: 1000 }) : [];
+      const symbols = [...groups.flat().map(item => item.symbol), ...opportunities.map(item => item.symbol)];
+      return {
+        symbols: Array.from(new Set(symbols.flatMap(symbol =>
+          symbol?.trim() ? [symbol.trim().toUpperCase()] : []))).sort(),
+        screenerLimitReached: opportunities.length === 1000,
+      };
+    },
   });
-  const symbolOptions = Array.from(new Set([
-    ...(instruments.data?.map(item => item.symbol) ?? []),
-    ...(rules.data?.flatMap(rule => [
-      ...(rule.conditions.symbols ?? []), ...(rule.conditions.excluded_symbols ?? []),
-    ]) ?? []),
-    ...form.conditions.symbols, ...form.conditions.excluded_symbols,
-  ].map(symbol => symbol.trim().toUpperCase()).filter(Boolean))).sort();
+  const symbolOptions = instruments.data?.symbols ?? [];
 
   function edit(rule?: AlertRule) {
     const defaults = emptyRule();
@@ -389,6 +405,7 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
               </Stack>
               {(form.conditions.scope === "WATCHLIST" || form.conditions.scope === "PORTFOLIO") && (
                 <TextField select fullWidth label={form.conditions.scope === "PORTFOLIO" ? "Seleziona portafoglio" : "Seleziona watchlist"} value={form.conditions.scope_id ?? ""}
+                  slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
                   disabled={busy || !!context || collections.isPending || collections.isError}
                   onChange={event => condition("scope_id", event.target.value || undefined)}>
                   <MenuItem value="">{form.conditions.scope === "PORTFOLIO" ? "Tutti i miei portafogli" : "Tutte le mie watchlist"}</MenuItem>
@@ -414,14 +431,18 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
               </Stack>
               {instruments.isError && <Alert severity="error" action={
                 <IconButton aria-label="Riprova simboli" onClick={() => void instruments.refetch()}><RefreshIcon /></IconButton>
-              }>Impossibile caricare il catalogo dei simboli.</Alert>}
+              }>Impossibile caricare i simboli dell'ambito selezionato.</Alert>}
+              {instruments.data?.screenerLimitReached && <Alert severity="warning">
+                L'elenco dello screener e' limitato alle prime 1000 opportunita.
+              </Alert>}
               {filters.filter(([key]) => !priceRule || key === "symbols" || key === "excluded_symbols").map(([key, label]) => (
-                <Autocomplete key={key} multiple freeSolo autoSelect
+                <Autocomplete key={key} multiple freeSolo={key !== "symbols" && key !== "excluded_symbols"} autoSelect
                   disableCloseOnSelect={key === "symbols" || key === "excluded_symbols"}
                   loading={(key === "symbols" || key === "excluded_symbols") && instruments.isPending}
+                  loadingText="Caricamento simboli..." noOptionsText="Nessun simbolo nell'ambito selezionato"
                   options={key === "symbols" || key === "excluded_symbols" ? symbolOptions
                     : Array.from(new Set(rules.data?.flatMap(rule => rule.conditions[key] ?? []) ?? []))}
-                  value={form.conditions[key]} disabled={busy}
+                  value={form.conditions[key]} disabled={busy || ((key === "symbols" || key === "excluded_symbols") && !instruments.isSuccess)}
                   onChange={(_, values) => condition(key, Array.from(new Set(values.map(value => value.trim().toUpperCase()).filter(Boolean))))}
                   renderOption={key === "symbols" || key === "excluded_symbols" ? (props, option, { selected }) => {
                     const { key: optionKey, ...optionProps } = props;
