@@ -5,7 +5,8 @@ export type NotificationType =
   | "MARKET_SIGNAL"
   | "FIXED_PRICE"
   | "PERCENT_MOVE"
-  | "SIGNAL_CHANGE";
+  | "SIGNAL_CHANGE"
+  | "SCREENER_SUMMARY";
 
 export type NotificationPreference = {
   notification_type: NotificationType;
