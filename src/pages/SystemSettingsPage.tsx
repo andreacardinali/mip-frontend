@@ -44,7 +44,7 @@ import {
   type SchedulerRunLog,
 } from "../services/systemAdmin";
 import { notifyOperation, notifyOperationError } from "../services/operationFeedback";
-import { formatTimestamp } from "../services/timestamps";
+import { formatLogTimestamp, formatTimestamp } from "../services/timestamps";
 
 const TERMINAL_STATUSES = new Set([
   "SUCCESS",
@@ -435,7 +435,7 @@ export default function SystemSettingsPage() {
                       overflowWrap: "anywhere",
                     }}
                   >
-                    {formatTimestamp(entry.logged_at)}{" "}
+                    {formatLogTimestamp(entry.logged_at)}{" "}
                     {entry.level}{" "}
                     {entry.logger_name}:{" "}
                     {entry.message}

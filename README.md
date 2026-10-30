@@ -6,6 +6,8 @@ Displayed timestamps use a shared Italian relative-time formatter for distances
 under 30 days, including future events. Older timestamps retain a complete local
 date and time; missing or invalid values show `N/D`. Raw values remain unchanged
 for date filters and chronological sorting. Relative labels update on render.
+Job log entries are an exception: they always show the full local date and time,
+including seconds and milliseconds, using a dedicated precise formatter.
 Formatter tests run with `node --test tests/timestamps.test.mjs`.
 
 System settings shows each job's last execution beside its status. Cron jobs

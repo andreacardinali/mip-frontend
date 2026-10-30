@@ -4,7 +4,18 @@ const relativeFormatter = new Intl.RelativeTimeFormat("it-IT", { numeric: "alway
 const absoluteFormatter = new Intl.DateTimeFormat("it-IT", {
   dateStyle: "short", timeStyle: "short",
 });
+const logFormatter = new Intl.DateTimeFormat("it-IT", {
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", second: "2-digit",
+  fractionalSecondDigits: 3, hourCycle: "h23",
+});
 const daySeconds = 86400;
+
+export function formatLogTimestamp(value: TimestampValue): string {
+  if (value == null || value === "") return "N/D";
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? logFormatter.format(date) : "N/D";
+}
 
 export function formatTimestamp(value: TimestampValue, now = Date.now()): string {
   if (value == null || value === "") return "N/D";
