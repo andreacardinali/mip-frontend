@@ -66,7 +66,7 @@ type JobStatusFilter = "all" | "SUCCESS" | "FAILED";
 function getVisibleJobs(jobs: SchedulerJob[], sort: JobSort, status: JobStatusFilter) {
   const timestamp = (job: SchedulerJob) => {
     const value = sort === "last_run_at" ? job.last_run_at
-      : job.enabled && !job.request_only ? job.next_run_at : null;
+      : job.enabled && !job.request_only && !job.replaced_by ? job.next_run_at : null;
     const parsed = value ? Date.parse(value) : NaN;
     return Number.isFinite(parsed) ? parsed : null;
   };
@@ -264,6 +264,7 @@ export default function SystemSettingsPage() {
   const [jobs, setJobs] = useState<SchedulerJob[]>([]);
   const [jobSort, setJobSort] = useState<JobSort>("name");
   const [jobStatusFilter, setJobStatusFilter] = useState<JobStatusFilter>("all");
+  const [showSuperseded, setShowSuperseded] = useState(false);
   const [runs, setRuns] = useState<Record<string, SchedulerJobRun[]>>({});
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedJobKey, setSelectedJobKey] = useState<string | null>(null);
@@ -279,7 +280,9 @@ export default function SystemSettingsPage() {
   const selectedRun = selectedJobKey
     ? runs[selectedJobKey]?.find(run => run.job_run_id === selectedRunId)
     : undefined;
-  const visibleJobs = getVisibleJobs(jobs, jobSort, jobStatusFilter);
+  const visibleJobs = getVisibleJobs(
+    jobs.filter(job => showSuperseded || !job.replaced_by), jobSort, jobStatusFilter,
+  );
 
   useEffect(() => {
     if (followLogs && logViewportRef.current) {
@@ -557,6 +560,10 @@ export default function SystemSettingsPage() {
           <MenuItem value="SUCCESS">Riusciti</MenuItem>
           <MenuItem value="FAILED">Falliti</MenuItem>
         </TextField>
+        <FormControlLabel
+          control={<Switch checked={showSuperseded} onChange={(_, checked) => setShowSuperseded(checked)} />}
+          label="Mostra job sostituiti"
+        />
         {!loading && <Typography variant="body2" color="text.secondary">{visibleJobs.length} / {jobs.length} job</Typography>}
       </Stack>
 
@@ -588,7 +595,10 @@ export default function SystemSettingsPage() {
                     <Typography variant="body2" color="text.secondary">
                       {job.job_key} · {job.python_module}
                     </Typography>
-                    {job.request_only ? <Typography variant="body2" sx={{ mt: 0.75 }}>Su richiesta contestuale</Typography>
+                    {job.replaced_by ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                      Sostituito da {jobs.find(candidate => candidate.job_key === job.replaced_by)?.job_name ?? job.replaced_by}
+                    </Typography>
+                      : job.request_only ? <Typography variant="body2" sx={{ mt: 0.75 }}>Su richiesta contestuale</Typography>
                       : job.trigger_type === "cron" ? <CronEditor job={job} onSaved={loadJobs} />
                       : <Box sx={{ mt: 0.75 }}>
                         <Typography variant="body2">Intervallo: {job.interval_minutes ?? 0} minuti</Typography>
@@ -603,7 +613,7 @@ export default function SystemSettingsPage() {
                       disabled={loadingRunsKey !== null}
                       onClick={() => void openLatestRun(job.job_key)}
                     >{job.last_status === "RUNNING" ? "Run attivo" : "Ultimo run"}</Button>
-                    {!job.request_only && <Button
+                    {!job.request_only && !job.replaced_by && <Button
                       variant="contained"
                       startIcon={runningJobKey === job.job_key ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
                       disabled={runningJobKey !== null}
@@ -614,7 +624,7 @@ export default function SystemSettingsPage() {
                     >
                       Esegui ora
                     </Button>}
-                    {!job.request_only && <FormControlLabel
+                    {!job.request_only && !job.replaced_by && <FormControlLabel
                       control={<Switch checked={job.enabled} disabled={updatingJobKey === job.job_key} onChange={() => void toggleJob(job)} />}
                       label={job.enabled ? "Abilitato" : "Disabilitato"}
                     />}
