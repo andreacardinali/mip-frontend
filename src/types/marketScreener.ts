@@ -1,5 +1,20 @@
 export type PortfolioMatchType = "EXACT_INSTRUMENT" | "SAME_ISIN" | "SAME_ENTITY" | "NO_MATCH";
 export type ConsensusDirection = "LONG" | "SHORT" | "CONFLICT" | "NEUTRAL";
+export interface ScreenerSnapshotChange {
+	change_type: "NEW" | "CHANGED" | "REMOVED";
+	current: ScreenerSnapshotItem | null;
+	previous: ScreenerSnapshotItem | null;
+}
+export interface ScreenerSnapshotChanges {
+	ranking_snapshot_id: string;
+	previous_snapshot_id: string | null;
+	observed_at: string;
+	opportunity_count: number;
+	new_count: number;
+	changed_count: number;
+	removed_count: number;
+	changes: ScreenerSnapshotChange[];
+}
 export interface ScreenerPerformanceFilters {
 	instrument_id?: string;
 	strategy_code?: string;

@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import HistoryIcon from "@mui/icons-material/History";
 import ShowChartIcon from "@mui/icons-material/ShowChart";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import FiberNewIcon from "@mui/icons-material/FiberNew";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import {
   Alert,
   Box,
@@ -33,6 +35,7 @@ import {
   getScreenerSignalEvents,
   getScreenerSnapshots,
   getScreenerSnapshotItems,
+  getScreenerSnapshotChanges,
 } from "../services/marketScreener";
 import type {
   ConsensusDirection,
@@ -40,6 +43,7 @@ import type {
   ScreenerOpportunity,
   ScreenerSignalEvent,
   ScreenerSnapshotItem,
+  ScreenerSnapshotChange,
 } from "../types/marketScreener";
 
 function score(value: number | null) {
@@ -100,6 +104,7 @@ export default function ScreenerPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [performanceOpen, setPerformanceOpen] = useState(false);
+  const [changesOpen, setChangesOpen] = useState(false);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
 
   const filters = useMemo(
@@ -152,6 +157,32 @@ export default function ScreenerPage() {
     enabled: Boolean(selectedSnapshotId),
   });
   const latestRun = runsQuery.data?.[0];
+  const changesQuery = useQuery({
+    queryKey: ["market-screener-changes"],
+    queryFn: () => getScreenerSnapshotChanges(),
+  });
+  const newEntries = new Set(changesQuery.data?.changes
+    .filter(change => change.change_type === "NEW" && change.current)
+    .map(change => `${change.current!.instrument_id}:${change.current!.signal_timeframe ?? ""}:${change.current!.signal_id}`));
+  const changeLabels = { NEW: "Nuovo ingresso", CHANGED: "Variato", REMOVED: "Uscito" };
+  const changeColumns: GridColDef<ScreenerSnapshotChange>[] = [
+    { field: "change_type", headerName: "Variazione", width: 145,
+      renderCell: ({ row }) => <Chip size="small" label={changeLabels[row.change_type]}
+        color={row.change_type === "NEW" ? "success" : row.change_type === "REMOVED" ? "error" : "warning"} /> },
+    { field: "symbol", headerName: "Simbolo", width: 115,
+      valueGetter: (_, row) => (row.current ?? row.previous)?.symbol ?? "-" },
+    { field: "timeframe", headerName: "Timeframe", width: 105,
+      valueGetter: (_, row) => (row.current ?? row.previous)?.signal_timeframe ?? "-" },
+    { field: "previous", headerName: "Precedente", minWidth: 280, flex: 1,
+      valueGetter: (_, row) => row.previous
+        ? `${row.previous.signal_type ?? "-"} / ${row.previous.strategy_code ?? "-"} / ${row.previous.direction} / ${row.previous.consensus_direction} / ${row.previous.verdict ?? "-"}` : "-" },
+    { field: "current", headerName: "Attuale", minWidth: 280, flex: 1,
+      valueGetter: (_, row) => row.current
+        ? `${row.current.signal_type ?? "-"} / ${row.current.strategy_code ?? "-"} / ${row.current.direction} / ${row.current.consensus_direction} / ${row.current.verdict ?? "-"}` : "-" },
+    { field: "strategies", headerName: "Strategie (supporto; opposizione)", minWidth: 270, flex: 1,
+      valueGetter: (_, row) => [row.previous, row.current].map(item => item
+        ? `${(item.supporting_strategies ?? []).join(", ") || "-"}; ${(item.opposing_strategies ?? []).join(", ") || "-"}` : "-").join(" → ") },
+  ];
 
   const rows = opportunitiesQuery.data ?? [];
   const portfolioCount = rows.filter((row) => row.portfolio_match).length;
@@ -161,7 +192,17 @@ export default function ScreenerPage() {
     {
       field: "source_symbol",
       headerName: "Simbolo",
-      width: 105,
+      width: 135,
+      renderCell: ({ row }) => (
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", height: "100%" }}>
+          <span>{row.source_symbol}</span>
+          {newEntries.has(`${row.source_instrument_id}:${row.signal_timeframe ?? ""}:${row.signal_id}`) && (
+            <Tooltip title="New entry nell'ultima scansione completa">
+              <FiberNewIcon color="success" fontSize="small" aria-label="New entry" />
+            </Tooltip>
+          )}
+        </Stack>
+      ),
     },
     {
       field: "entity_name",
@@ -333,6 +374,9 @@ export default function ScreenerPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+          <Button variant="outlined" startIcon={<CompareArrowsIcon />} onClick={() => setChangesOpen(true)}>
+            Variazioni
+          </Button>
           <Button variant="outlined" startIcon={<ShowChartIcon />} onClick={() => setPerformanceOpen(true)}>
             Performance
           </Button>
@@ -346,12 +390,47 @@ export default function ScreenerPage() {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            onClick={() => void opportunitiesQuery.refetch()}
+            onClick={() => void Promise.all([
+              opportunitiesQuery.refetch(), changesQuery.refetch(), runsQuery.refetch(), snapshotsQuery.refetch(),
+            ])}
           >
             Aggiorna
           </Button>
         </Stack>
       </Stack>
+
+      {changesQuery.isError && <Alert severity="error" sx={{ mb: 2 }} action={
+        <IconButton aria-label="Riprova variazioni" onClick={() => void changesQuery.refetch()}><RefreshIcon /></IconButton>
+      }>Impossibile caricare le variazioni dello screener.</Alert>}
+      {changesQuery.data && <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: "wrap", mb: 2 }}>
+        <Typography variant="body2" color="text.secondary">Scansione completa: {new Date(changesQuery.data.observed_at).toLocaleString("it-IT")}</Typography>
+        <Typography variant="body2" color="success.main">Nuovi ingressi: {changesQuery.data.new_count}</Typography>
+        <Typography variant="body2" color="warning.main">Variati: {changesQuery.data.changed_count}</Typography>
+        <Typography variant="body2" color="error.main">Usciti: {changesQuery.data.removed_count}</Typography>
+      </Stack>}
+      <Dialog open={changesOpen} onClose={() => setChangesOpen(false)} fullWidth maxWidth="xl">
+        <DialogTitle>Variazioni della scansione completa</DialogTitle>
+        <DialogContent>
+          {changesQuery.isPending && <Typography>Caricamento...</Typography>}
+          {changesQuery.isError && <Alert severity="error" action={
+            <IconButton aria-label="Riprova variazioni" onClick={() => void changesQuery.refetch()}><RefreshIcon /></IconButton>
+          }>Impossibile caricare le variazioni.</Alert>}
+          {changesQuery.isSuccess && !changesQuery.data && <Typography>Nessuna scansione completa disponibile.</Typography>}
+          {changesQuery.data && <>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              {new Date(changesQuery.data.observed_at).toLocaleString("it-IT")} · {changesQuery.data.opportunity_count} opportunità
+              {!changesQuery.data.previous_snapshot_id && " · Prima scansione completa"}
+            </Typography>
+            <Box sx={{ height: 480, width: "100%" }}>
+              <DataGrid rows={changesQuery.data.changes} columns={changeColumns}
+                getRowId={row => (row.current ?? row.previous)!.ranking_snapshot_item_id}
+                disableRowSelectionOnClick pageSizeOptions={[10, 25, 50, 100]}
+                initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} />
+            </Box>
+          </>}
+        </DialogContent>
+        <DialogActions><Button onClick={() => setChangesOpen(false)}>Chiudi</Button></DialogActions>
+      </Dialog>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Stack direction={{ xs: "column", lg: "row" }} spacing={2}>
