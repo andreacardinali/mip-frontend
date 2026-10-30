@@ -106,6 +106,8 @@ export default function ScreenerPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [performanceOpen, setPerformanceOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
+  const [changesSnapshotId, setChangesSnapshotId] = useState("");
+  const [changeType, setChangeType] = useState<ScreenerSnapshotChange["change_type"] | "">("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
 
   const filters = useMemo(
@@ -162,6 +164,14 @@ export default function ScreenerPage() {
     queryKey: ["market-screener-changes"],
     queryFn: () => getScreenerSnapshotChanges(),
   });
+  const historicalChangesQuery = useQuery({
+    queryKey: ["market-screener-changes", changesSnapshotId],
+    queryFn: () => getScreenerSnapshotChanges(changesSnapshotId),
+    enabled: changesOpen && Boolean(changesSnapshotId),
+  });
+  const comparisonQuery = changesSnapshotId ? historicalChangesQuery : changesQuery;
+  const comparisonRows = (comparisonQuery.data?.changes ?? [])
+    .filter(change => !changeType || change.change_type === changeType);
   const newEntries = new Set(changesQuery.data?.changes
     .filter(change => change.change_type === "NEW" && change.current)
     .map(change => `${change.current!.instrument_id}:${change.current!.signal_timeframe ?? ""}:${change.current!.signal_id}`));
@@ -386,6 +396,24 @@ export default function ScreenerPage() {
   ];
 
   const selected = detailQuery.data;
+  const refreshing = opportunitiesQuery.isFetching || changesQuery.isFetching
+    || runsQuery.isFetching || snapshotsQuery.isFetching
+    || (changesOpen && historicalChangesQuery.isFetching)
+    || (Boolean(selectedId) && (detailQuery.isFetching || signalEventsQuery.isFetching))
+    || (Boolean(selectedSnapshotId) && snapshotItemsQuery.isFetching);
+
+  function refreshScreener() {
+    void Promise.all([
+      opportunitiesQuery.refetch(),
+      changesQuery.refetch(),
+      runsQuery.refetch(),
+      snapshotsQuery.refetch(),
+      ...(changesOpen && changesSnapshotId ? [historicalChangesQuery.refetch()] : []),
+      ...(selectedId ? [detailQuery.refetch()] : []),
+      ...(selectedId && selected ? [signalEventsQuery.refetch()] : []),
+      ...(selectedSnapshotId ? [snapshotItemsQuery.refetch()] : []),
+    ]);
+  }
 
   return (
     <Box sx={{ py: 1 }}>
@@ -401,7 +429,11 @@ export default function ScreenerPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-          <Button variant="outlined" startIcon={<CompareArrowsIcon />} onClick={() => setChangesOpen(true)}>
+          <Button variant="outlined" startIcon={<CompareArrowsIcon />} onClick={() => {
+            setChangesSnapshotId("");
+            setChangeType("");
+            setChangesOpen(true);
+          }}>
             Variazioni
           </Button>
           <Button variant="outlined" startIcon={<ShowChartIcon />} onClick={() => setPerformanceOpen(true)}>
@@ -417,9 +449,8 @@ export default function ScreenerPage() {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            onClick={() => void Promise.all([
-              opportunitiesQuery.refetch(), changesQuery.refetch(), runsQuery.refetch(), snapshotsQuery.refetch(),
-            ])}
+            disabled={refreshing}
+            onClick={refreshScreener}
           >
             Aggiorna
           </Button>
@@ -438,18 +469,46 @@ export default function ScreenerPage() {
       <Dialog open={changesOpen} onClose={() => setChangesOpen(false)} fullWidth maxWidth="xl">
         <DialogTitle>Variazioni della scansione completa</DialogTitle>
         <DialogContent>
-          {changesQuery.isPending && <Typography>Caricamento...</Typography>}
-          {changesQuery.isError && <Alert severity="error" action={
-            <IconButton aria-label="Riprova variazioni" onClick={() => void changesQuery.refetch()}><RefreshIcon /></IconButton>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }}>
+            <TextField select size="small" label="Scansione" value={changesSnapshotId}
+              onChange={event => setChangesSnapshotId(event.target.value)} sx={{ minWidth: 240, flex: 1 }}>
+              <MenuItem value="">Ultima scansione completa</MenuItem>
+              {(snapshotsQuery.data ?? []).map(snapshot => <MenuItem
+                key={snapshot.ranking_snapshot_id} value={snapshot.ranking_snapshot_id}>
+                {new Date(snapshot.observed_at).toLocaleString("it-IT")}
+              </MenuItem>)}
+            </TextField>
+            <TextField select size="small" label="Variazione" value={changeType} sx={{ minWidth: 180 }}
+              onChange={event => setChangeType(event.target.value as ScreenerSnapshotChange["change_type"] | "")}>
+              <MenuItem value="">Tutte</MenuItem>
+              <MenuItem value="NEW">Nuovi ingressi</MenuItem>
+              <MenuItem value="CHANGED">Variati</MenuItem>
+              <MenuItem value="REMOVED">Usciti</MenuItem>
+            </TextField>
+          </Stack>
+          {snapshotsQuery.isError && <Alert severity="error" sx={{ mb: 2 }} action={
+            <IconButton aria-label="Riprova elenco scansioni" disabled={snapshotsQuery.isFetching}
+              onClick={() => void snapshotsQuery.refetch()}><RefreshIcon /></IconButton>
+          }>Impossibile caricare l'elenco delle scansioni.</Alert>}
+          {comparisonQuery.isPending && <Typography>Caricamento...</Typography>}
+          {comparisonQuery.isError && <Alert severity="error" action={
+            <IconButton aria-label="Riprova confronto" disabled={comparisonQuery.isFetching}
+              onClick={() => void comparisonQuery.refetch()}><RefreshIcon /></IconButton>
           }>Impossibile caricare le variazioni.</Alert>}
-          {changesQuery.isSuccess && !changesQuery.data && <Typography>Nessuna scansione completa disponibile.</Typography>}
-          {changesQuery.data && <>
+          {comparisonQuery.isSuccess && !comparisonQuery.data && <Typography>Nessuna scansione completa disponibile per questo confronto.</Typography>}
+          {comparisonQuery.data && <>
             <Typography variant="body2" sx={{ mb: 2 }}>
-              {new Date(changesQuery.data.observed_at).toLocaleString("it-IT")} · {changesQuery.data.opportunity_count} opportunità
-              {!changesQuery.data.previous_snapshot_id && " · Prima scansione completa"}
+              {new Date(comparisonQuery.data.observed_at).toLocaleString("it-IT")} · {comparisonQuery.data.opportunity_count} opportunità
+              {!comparisonQuery.data.previous_snapshot_id && " · Prima scansione completa"}
+              {` · Nuovi ingressi: ${comparisonQuery.data.new_count} · Variati: ${comparisonQuery.data.changed_count} · Usciti: ${comparisonQuery.data.removed_count}`}
             </Typography>
             <Box sx={{ height: 480, width: "100%" }}>
-              <DataGrid rows={changesQuery.data.changes} columns={changeColumns}
+              <DataGrid rows={comparisonRows} columns={changeColumns}
+                loading={comparisonQuery.isFetching} showToolbar
+                slotProps={{ toolbar: {
+                  csvOptions: { fileName: "mip-screener-variazioni", utf8WithBom: true, escapeFormulas: true },
+                  printOptions: { disableToolbarButton: true },
+                } }}
                 getRowId={row => (row.current ?? row.previous)!.ranking_snapshot_item_id}
                 disableRowSelectionOnClick pageSizeOptions={[10, 25, 50, 100]}
                 initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} />
@@ -606,6 +665,9 @@ export default function ScreenerPage() {
           {detailQuery.isLoading && <Typography>Caricamento…</Typography>}
           {detailQuery.isError && (
             <Alert severity="error">Impossibile caricare il dettaglio.</Alert>
+          )}
+          {detailQuery.isSuccess && !selected && (
+            <Alert severity="info">Opportunit\u00e0 non pi\u00f9 disponibile.</Alert>
           )}
           {selected && (
             <Stack spacing={3}>
@@ -805,9 +867,21 @@ export default function ScreenerPage() {
       <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} fullWidth maxWidth="lg">
         <DialogTitle>Storico Screener</DialogTitle>
         <DialogContent dividers>
+          {runsQuery.isError && <Alert severity="error" sx={{ mb: 2 }} action={
+            <IconButton aria-label="Riprova stato scansioni" disabled={runsQuery.isFetching}
+              onClick={() => void runsQuery.refetch()}><RefreshIcon /></IconButton>
+          }>Impossibile caricare lo stato delle scansioni.</Alert>}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <Box sx={{ minWidth: 320 }}>
+            <Box sx={{ width: { xs: "100%", md: 320 }, flexShrink: 0 }}>
               <Typography variant="h6" sx={{ mb: 1 }}>Snapshot ranking</Typography>
+              {snapshotsQuery.isLoading && <Typography>Caricamento...</Typography>}
+              {snapshotsQuery.isError && <Alert severity="error" action={
+                <IconButton aria-label="Riprova snapshot" disabled={snapshotsQuery.isFetching}
+                  onClick={() => void snapshotsQuery.refetch()}><RefreshIcon /></IconButton>
+              }>Impossibile caricare gli snapshot.</Alert>}
+              {snapshotsQuery.isSuccess && !snapshotsQuery.data.length && (
+                <Typography color="text.secondary">Nessuno snapshot disponibile.</Typography>
+              )}
               <Stack spacing={1}>
                 {(snapshotsQuery.data ?? []).map((snapshot) => (
                   <Button
@@ -821,13 +895,25 @@ export default function ScreenerPage() {
                 ))}
               </Stack>
             </Box>
-            <Box sx={{ flex: 1 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="h6" sx={{ mb: 1 }}>Classifica storica</Typography>
+              {selectedSnapshotId && <Button size="small" startIcon={<CompareArrowsIcon />} sx={{ mb: 1 }}
+                onClick={() => {
+                  setChangesSnapshotId(selectedSnapshotId);
+                  setChangeType("");
+                  setHistoryOpen(false);
+                  setChangesOpen(true);
+                }}>Variazioni</Button>}
+              {!selectedSnapshotId && <Typography color="text.secondary" sx={{ mb: 1 }}>Nessuno snapshot selezionato.</Typography>}
+              {selectedSnapshotId && snapshotItemsQuery.isError && <Alert severity="error" sx={{ mb: 1 }} action={
+                <IconButton aria-label="Riprova classifica storica" disabled={snapshotItemsQuery.isFetching}
+                  onClick={() => void snapshotItemsQuery.refetch()}><RefreshIcon /></IconButton>
+              }>Impossibile caricare la classifica storica.</Alert>}
               <Paper variant="outlined" sx={{ height: 520 }}>
                 <DataGrid<ScreenerSnapshotItem>
                   rows={snapshotItemsQuery.data ?? []}
                   getRowId={(row) => row.ranking_snapshot_item_id}
-                  loading={snapshotItemsQuery.isLoading}
+                  loading={snapshotItemsQuery.isFetching}
                   columns={[
                     { field: "ranking_position", headerName: "#", width: 60 },
                     { field: "ranking_change", headerName: "Δ", width: 70,
