@@ -10,8 +10,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { getEntities, getEntityOverview } from "../services/entities";
 import { analyzeScreenerContext, screenerAnalysisMutationKey } from "../services/marketScreener";
 import type { EntityScope } from "../types/entity";
-
-const timestamp = (value: string | null) => value ? new Date(value).toLocaleString("it-IT") : "N/D";
+import { formatTimestamp as timestamp } from "../services/timestamps";
 
 export default function EntitiesPage() {
   const { id } = useParams();
@@ -64,7 +63,7 @@ export default function EntitiesPage() {
       <Button startIcon={<RefreshIcon />} onClick={() => void current.refetch()} disabled={current.isFetching}>Aggiorna</Button>
     </Stack>
     {overview && <Stack direction="row" sx={{ gap: 1, columnGap: 3, flexWrap: "wrap" }}>
-      <Typography variant="caption" color="text.secondary">Scheda aggiornata alle: {timestamp(overview.observed_at)}</Typography>
+      <Typography variant="caption" color="text.secondary">Scheda aggiornata: {timestamp(overview.observed_at)}</Typography>
       <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(overview.last_analysis_at ?? null)}</Typography>
     </Stack>}
     {id && analysisPending && <LinearProgress />}
@@ -116,7 +115,7 @@ export default function EntitiesPage() {
         { field: "watchlist_names", headerName: "Watchlist (entita)", minWidth: 180, flex: 1 },
         { field: "currency_code", headerName: "Valuta", width: 95 }, { field: "instrument_type", headerName: "Tipo", width: 130 },
         { field: "last_price", headerName: "Ultimo prezzo", width: 145 },
-        { field: "price_as_of", headerName: "Timestamp prezzo", width: 210, valueFormatter: timestamp },
+        { field: "price_as_of", headerName: "Timestamp prezzo", width: 210, valueFormatter: value => timestamp(value) },
         { field: "data_source", headerName: "Fonte", width: 150 },
       ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>
       <Typography variant="h6">Appartenenze</Typography>

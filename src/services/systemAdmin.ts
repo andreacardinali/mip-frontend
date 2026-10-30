@@ -54,6 +54,15 @@ export async function listSchedulerJobs(): Promise<SchedulerJob[]> {
   return (await api.get<SchedulerJob[]>("/admin/system/scheduler/jobs")).data;
 }
 
+export async function previewSchedulerCron(cronExpression: string): Promise<{
+  next_run_at: string | null;
+  timezone: string;
+}> {
+  return (await api.post("/admin/system/scheduler/cron-preview", {
+    cron_expression: cronExpression,
+  })).data;
+}
+
 export async function updateSchedulerJob(
   jobKey: string,
   payload: SchedulerJobUpdate,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatTimestamp as date } from "../services/timestamps";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -24,10 +25,6 @@ const PAGE_SIZE = 25;
 const endLabels: Record<string, string> = {
   CLOSED: "Chiuso", EXPIRED: "Scaduto", DIRECTION_CHANGED: "Cambio direzione", CREATED: "Nuovo ciclo",
 };
-
-function date(value: string | null) {
-  return value ? new Date(value).toLocaleString("it-IT") : "N/D";
-}
 
 function price(value: unknown, currency: string | null) {
   const formatted = Number(value).toLocaleString("it-IT", { maximumFractionDigits: 6 });

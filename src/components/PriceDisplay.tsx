@@ -1,5 +1,6 @@
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { Box, Chip, Tooltip, Typography } from "@mui/material";
+import { formatTimestamp } from "../services/timestamps";
 
 export type PriceDisplayProps = {
   value: number | string | null | undefined;
@@ -15,10 +16,7 @@ function formatPriceDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
 
-  return new Intl.DateTimeFormat("it-IT", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
+  return formatTimestamp(date);
 }
 
 export default function PriceDisplay({

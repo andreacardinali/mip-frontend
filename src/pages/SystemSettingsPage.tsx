@@ -2,6 +2,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SaveIcon from "@mui/icons-material/Save";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -25,6 +26,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 
@@ -32,6 +35,7 @@ import {
   listSchedulerJobRuns,
   listSchedulerJobs,
   listSchedulerRunLogs,
+  previewSchedulerCron,
   runSchedulerJob,
   updateSchedulerJob,
   type SchedulerJob,
@@ -39,6 +43,7 @@ import {
   type SchedulerRunLog,
 } from "../services/systemAdmin";
 import { notifyOperation, notifyOperationError } from "../services/operationFeedback";
+import { formatTimestamp } from "../services/timestamps";
 
 const TERMINAL_STATUSES = new Set([
   "SUCCESS",
@@ -46,19 +51,6 @@ const TERMINAL_STATUSES = new Set([
   "PARTIAL",
   "INCOMPLETE",
 ]);
-
-const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
-  dateStyle: "short",
-  timeStyle: "medium",
-});
-
-function formatTimestamp(value: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : dateTimeFormatter.format(date);
-}
 
 function formatDuration(value: number | string | null) {
   if (value == null) return "—";
@@ -100,6 +92,63 @@ function logColor(level: string) {
     default:
       return "inherit";
   }
+}
+
+function CronEditor({ job, onSaved }: { job: SchedulerJob; onSaved: () => Promise<void> }) {
+  const [expression, setExpression] = useState(job.cron_expression ?? "");
+  const [preview, setPreview] = useState<{ expression: string; next_run_at: string | null; timezone: string } | null>(null);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const changed = expression.trim() !== job.cron_expression;
+  const validPreview = preview?.expression === expression.trim() ? preview : null;
+
+  useEffect(() => {
+    if (!changed) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setError("");
+      void previewSchedulerCron(expression.trim()).then(result => {
+        if (!cancelled) setPreview({ ...result, expression: expression.trim() });
+      }).catch(() => {
+        if (!cancelled) {
+          setPreview(null);
+          setError("Cron non valido o anteprima non disponibile.");
+        }
+      });
+    }, 350);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [expression, changed]);
+
+  async function save() {
+    if (!validPreview || !changed) return;
+    setSaving(true);
+    try {
+      await updateSchedulerJob(job.job_key, { trigger_type: "cron", cron_expression: expression.trim() });
+      notifyOperation("Pianificazione salvata.");
+      await onSaved();
+    } catch (requestError) {
+      notifyOperationError(requestError, "Impossibile salvare la pianificazione.");
+    } finally { setSaving(false); }
+  }
+
+  return <Box sx={{ mt: 1, maxWidth: 480 }}>
+    <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
+      <TextField size="small" label="Cron" value={expression} disabled={saving}
+        onChange={event => { setExpression(event.target.value); setPreview(null); setError(""); }}
+        error={Boolean(error)} helperText={error || undefined} fullWidth
+        slotProps={{ htmlInput: { "aria-label": `Cron di ${job.job_name}` } }} />
+      <Tooltip title="Salva pianificazione"><span><IconButton aria-label="Salva pianificazione"
+        disabled={saving || !changed || !validPreview} onClick={() => void save()}>
+        {saving ? <CircularProgress size={24} /> : <SaveIcon />}
+      </IconButton></span></Tooltip>
+    </Stack>
+    <Typography variant="body2" sx={{ mt: 0.75 }}>
+      {changed ? "Anteprima" : "Prossima esecuzione"}: {changed && !validPreview
+        ? error ? "N/D" : "Calcolo..."
+        : formatTimestamp(changed ? validPreview?.next_run_at : job.enabled ? job.next_run_at : null)}
+      {changed && validPreview && ` · ${validPreview.timezone}`}
+    </Typography>
+  </Box>;
 }
 
 export default function SystemSettingsPage() {
@@ -168,6 +217,11 @@ export default function SystemSettingsPage() {
       window.clearTimeout(timer);
     };
   }, [loadJobs]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (!selectedRunId) void loadJobs(); }, 15000);
+    return () => window.clearInterval(timer);
+  }, [loadJobs, selectedRunId]);
 
   useEffect(() => {
     if (!selectedRunId) return;
@@ -384,22 +438,20 @@ export default function SystemSettingsPage() {
                     <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
                       <Typography variant="h6">{job.job_name}</Typography>
                       <Chip size="small" label={job.last_status ?? "Mai eseguito"} color={statusColor(job.last_status)} />
+                      {job.last_run_at && <Typography variant="body2" color="text.secondary">{formatTimestamp(job.last_run_at)}</Typography>}
                     </Stack>
                     <Typography variant="body2" color="text.secondary">
                       {job.job_key} · {job.python_module}
                     </Typography>
-                    <Typography variant="body2" sx={{ mt: 0.75 }}>
-                      {job.request_only ? "Su richiesta contestuale" : job.trigger_type === "cron"
-                        ? `Cron: ${job.cron_expression ?? "non configurato"}`
-                        : `Intervallo: ${job.interval_minutes ?? 0} minuti`}
-                    </Typography>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.25, sm: 3 }} sx={{ mt: 0.75 }}>
-                      <Typography variant="body2">Ultima esecuzione: {formatTimestamp(job.last_run_at)}</Typography>
-                      {!job.request_only && <Typography variant="body2">Prossima esecuzione: {formatTimestamp(job.next_run_at)}</Typography>}
-                    </Stack>
+                    {job.request_only ? <Typography variant="body2" sx={{ mt: 0.75 }}>Su richiesta contestuale</Typography>
+                      : job.trigger_type === "cron" ? <CronEditor job={job} onSaved={loadJobs} />
+                      : <Box sx={{ mt: 0.75 }}>
+                        <Typography variant="body2">Intervallo: {job.interval_minutes ?? 0} minuti</Typography>
+                        <Typography variant="body2">Prossima esecuzione: {formatTimestamp(job.enabled ? job.next_run_at : null)}</Typography>
+                      </Box>}
                     {job.last_error && <Alert severity="error" sx={{ mt: 1 }}>{job.last_error}</Alert>}
                   </Box>
-                  <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+                  <Stack direction="row" spacing={1.5} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
                     <Button
                       variant="outlined"
                       startIcon={loadingRunsKey === job.job_key ? <CircularProgress size={18} /> : <TerminalIcon />}

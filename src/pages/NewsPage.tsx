@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
+import { formatTimestamp as formatDate } from "../services/timestamps";
 import LaunchIcon from "@mui/icons-material/Launch"; import RefreshIcon from "@mui/icons-material/Refresh";
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Link, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid"; import type { GridColDef } from "@mui/x-data-grid"; import { useQuery } from "@tanstack/react-query";
 import { getNews, getNewsFacets } from "../services/news"; import type { NewsItem, NewsScope } from "../types/news"; import type { AssetMatchType, EntityAssetMatch } from "../types/catalyst";
 const dateInput=(d:Date)=>d.toISOString().slice(0,10),startOfDay=(v:string)=>v?`${v}T00:00:00`:undefined,endOfDay=(v:string)=>v?`${v}T23:59:59`:undefined;
-function formatDate(v:string|null){if(!v)return"N/D";const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat("it-IT",{dateStyle:"medium",timeStyle:"short"}).format(d)}
 function numeric(v:number|string|null){const n=Number(v);return v==null||v===""||!Number.isFinite(n)?null:n} function score(v:number|string|null){const n=numeric(v);return n==null?"N/D":n.toLocaleString("it-IT",{maximumFractionDigits:2})}
 function sentimentLabel(v:NewsItem["sentiment"]){const n=numeric(v);return n==null?"N/D":n>=.2?`Positivo (${score(n)})`:n<=-.2?`Negativo (${score(n)})`:`Neutro (${score(n)})`} function sentimentColor(v:NewsItem["sentiment"]){const n=numeric(v);return n!=null&&n>=.2?"success" as const:n!=null&&n<=-.2?"error" as const:"default" as const}
 const scopeLabel=(v:NewsItem["asset_scope"])=>({PORTFOLIO:"Portafoglio",WATCHLIST:"Watchlist",BOTH:"Entrambi",GLOBAL:"Globale"})[v]; const matchLabel=(v:AssetMatchType)=>({EXACT_INSTRUMENT:"Strumento posseduto",SAME_ISIN:"Stesso ISIN",SAME_ENTITY:"Stessa entità",NO_MATCH:"Nessun match"})[v];

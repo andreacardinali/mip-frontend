@@ -1,5 +1,20 @@
 # React + TypeScript + Vite
 
+## Timestamp Display And Job Schedules
+
+Displayed timestamps use a shared Italian relative-time formatter for distances
+under 30 days, including future events. Older timestamps retain a complete local
+date and time; missing or invalid values show `N/D`. Raw values remain unchanged
+for date filters and chronological sorting. Relative labels update on render.
+Formatter tests run with `node --test tests/timestamps.test.mjs`.
+
+System settings shows each job's last execution beside its status. Cron jobs
+provide an editable expression, a debounced server-side preview and a save
+button enabled only after a valid preview. Unsaved previews are distinct from
+the scheduler's actual next execution. The job list refreshes every 15 seconds
+while run logs are closed; the scheduler applies schedule changes within its
+existing 30-second synchronization interval.
+
 ## Entity Filters
 
 The Entities page provides scopes for all entities, owned portfolio holdings,

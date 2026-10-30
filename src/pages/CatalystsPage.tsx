@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatTimestamp as formatDate } from "../services/timestamps";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
@@ -8,7 +9,6 @@ import { getCatalystFacets, getCatalysts } from "../services/catalysts";
 import type { AssetMatchType, Catalyst, CatalystScope, EntityAssetMatch } from "../types/catalyst";
 
 const dateInput=(d:Date)=>d.toISOString().slice(0,10); const startOfDay=(v:string)=>v?`${v}T00:00:00`:undefined; const endOfDay=(v:string)=>v?`${v}T23:59:59`:undefined;
-function formatDate(v:string|null){if(!v)return"N/D";const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat("it-IT",{dateStyle:"medium",timeStyle:"short"}).format(d)}
 function number(v:number|string|null){const n=Number(v);return v==null||!Number.isFinite(n)?null:n}
 function importanceLabel(v:Catalyst["importance"]){const n=number(v);return n==null?"N/D":n>=75?`Alta (${n})`:n>=40?`Media (${n})`:`Bassa (${n})`}
 function importanceColor(v:Catalyst["importance"]){const n=number(v);return n!=null&&n>=75?"error" as const:n!=null&&n>=40?"warning" as const:"default" as const}

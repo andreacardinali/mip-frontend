@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatTimestamp } from "../services/timestamps";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -44,12 +45,6 @@ const notificationSkipReasons: Record<string, string> = {
   SOURCE_NOT_FOUND: "Nessuna destinazione disponibile",
   DUPLICATE: "Notifica duplicata",
 };
-
-function formatTimestamp(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("it-IT");
-}
 
 function formatNumber(value?: number | null) {
   return value != null && Number.isFinite(value)
@@ -329,7 +324,7 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                     Riferimento: {formatNumber(payload.reference_price)} · Variazione: {formatNumber(change)}%
                   </Typography>}
                   {payload.reference_at && <Typography variant="body2" color="text.secondary">
-                    Riferimento del {formatTimestamp(payload.reference_at)}
+                    Riferimento: {formatTimestamp(payload.reference_at)}
                   </Typography>}
                 </> : <>
                   <Typography variant="body2">{[payload.event_type, payload.direction, payload.verdict].filter(Boolean).join(" · ") || "-"}</Typography>

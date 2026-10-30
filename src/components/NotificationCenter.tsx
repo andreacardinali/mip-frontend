@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from "react";
+import { formatTimestamp } from "../services/timestamps";
 import {
   Badge, Box, IconButton, List, ListItem, ListItemIcon, ListItemText,
   Popover, Stack, Tooltip, Typography,
@@ -19,9 +20,6 @@ const severityIcons = {
   info: <InfoOutlined />, success: <CheckCircleOutlined />,
   warning: <WarningAmberOutlined />, error: <ErrorOutlined />,
 };
-const timestampFormatter = new Intl.DateTimeFormat("it-IT", {
-  day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
-});
 
 export default function NotificationCenter() {
   const notifications = useSyncExternalStore(subscribeFeedback, getOperationNotifications);
@@ -89,7 +87,7 @@ export default function NotificationCenter() {
                   </Tooltip>
                 </ListItemIcon>
                 <ListItemText primary={notification.message}
-                  secondary={`${severityLabels[notification.severity]} | ${timestampFormatter.format(notification.createdAt)}`}
+                  secondary={`${severityLabels[notification.severity]} | ${formatTimestamp(notification.createdAt)}`}
                   slotProps={{ primary: { variant: "body2", sx: { overflowWrap: "anywhere" } },
                     secondary: { variant: "caption" } }} />
               </ListItem>

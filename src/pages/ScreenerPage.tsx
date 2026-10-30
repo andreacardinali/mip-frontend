@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatTimestamp } from "../services/timestamps";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 
 import HistoryIcon from "@mui/icons-material/History";
@@ -340,7 +341,7 @@ export default function ScreenerPage() {
     {
       field: "last_analysis_at", headerName: "Ultima analisi", width: 185, type: "dateTime",
       valueGetter: value => value ? new Date(value) : null,
-      valueFormatter: (value: Date | null) => value ? value.toLocaleString("it-IT") : "N/D",
+      valueFormatter: (value: Date | null) => formatTimestamp(value),
     },
     {
       field: "source_symbol",
@@ -594,7 +595,7 @@ export default function ScreenerPage() {
         <IconButton aria-label="Riprova variazioni" onClick={() => void changesQuery.refetch()}><RefreshIcon /></IconButton>
       }>Impossibile caricare le variazioni dello screener.</Alert>}
       {changesQuery.data && <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: "wrap", mb: 2 }}>
-        <Typography variant="body2" color="text.secondary">Scansione completa: {new Date(changesQuery.data.observed_at).toLocaleString("it-IT")}</Typography>
+        <Typography variant="body2" color="text.secondary">Scansione completa: {formatTimestamp(changesQuery.data.observed_at)}</Typography>
         <Typography variant="body2" color="success.main">Nuovi ingressi: {changesQuery.data.new_count}</Typography>
         <Typography variant="body2" color="warning.main">Variati: {changesQuery.data.changed_count}</Typography>
         <Typography variant="body2" color="error.main">Usciti: {changesQuery.data.removed_count}</Typography>
@@ -608,7 +609,7 @@ export default function ScreenerPage() {
               <MenuItem value="">Ultima scansione completa</MenuItem>
               {(snapshotsQuery.data ?? []).map(snapshot => <MenuItem
                 key={snapshot.ranking_snapshot_id} value={snapshot.ranking_snapshot_id}>
-                {new Date(snapshot.observed_at).toLocaleString("it-IT")}
+                {formatTimestamp(snapshot.observed_at)}
               </MenuItem>)}
             </TextField>
             <TextField select size="small" label="Variazione" value={changeType} sx={{ minWidth: 180 }}
@@ -631,7 +632,7 @@ export default function ScreenerPage() {
           {comparisonQuery.isSuccess && !comparisonQuery.data && <Typography>Nessuna scansione completa disponibile per questo confronto.</Typography>}
           {comparisonQuery.data && <>
             <Typography variant="body2" sx={{ mb: 2 }}>
-              {new Date(comparisonQuery.data.observed_at).toLocaleString("it-IT")} · {comparisonQuery.data.opportunity_count} opportunità
+              {formatTimestamp(comparisonQuery.data.observed_at)} · {comparisonQuery.data.opportunity_count} opportunità
               {!comparisonQuery.data.previous_snapshot_id && " · Prima scansione completa"}
               {` · Nuovi ingressi: ${comparisonQuery.data.new_count} · Variati: ${comparisonQuery.data.changed_count} · Usciti: ${comparisonQuery.data.removed_count}`}
             </Typography>
@@ -813,7 +814,7 @@ export default function ScreenerPage() {
         {latestRun && (
           <Chip
             color={latestRun.status === "SUCCESS" ? "success" : latestRun.status === "PARTIAL" ? "warning" : "error"}
-            label={`Ultimo run: ${latestRun.status} · ${new Date(latestRun.started_at).toLocaleString("it-IT")}`}
+            label={`Ultimo run: ${latestRun.status} · ${formatTimestamp(latestRun.started_at)}`}
           />
         )}
       </Stack>
@@ -999,7 +1000,7 @@ export default function ScreenerPage() {
                       loading={signalEventsQuery.isFetching}
                       columns={[
                         { field: "observed_at", headerName: "Data", width: 180,
-                          renderCell: ({ row }) => new Date(row.observed_at).toLocaleString("it-IT") },
+                          renderCell: ({ row }) => formatTimestamp(row.observed_at) },
                         { field: "strategy_code", headerName: "Strategia", width: 150 },
                         { field: "timeframe", headerName: "Timeframe", width: 100 },
                         { field: "event_type", headerName: "Evento", width: 190 },
@@ -1102,7 +1103,7 @@ export default function ScreenerPage() {
                     onClick={() => setSelectedSnapshotId(snapshot.ranking_snapshot_id)}
                     sx={{ justifyContent: "space-between" }}
                   >
-                    {new Date(snapshot.observed_at).toLocaleString("it-IT")} · {snapshot.opportunity_count}
+                    {formatTimestamp(snapshot.observed_at)} · {snapshot.opportunity_count}
                   </Button>
                 ))}
               </Stack>

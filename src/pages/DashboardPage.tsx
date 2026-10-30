@@ -3,6 +3,7 @@ import { ArrowForward, Refresh } from "@mui/icons-material";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getScreenerContexts, getScreenerRuns } from "../services/marketScreener";
+import { formatTimestamp } from "../services/timestamps";
 
 export default function DashboardPage() {
   const contexts = useQuery({ queryKey: ["market-screener-contexts"], queryFn: getScreenerContexts });
@@ -39,9 +40,9 @@ export default function DashboardPage() {
           <Table size="small" aria-label="Ultime esecuzioni screener">
             <TableHead><TableRow><TableCell>Avvio</TableCell><TableCell>Stato</TableCell><TableCell align="right">Opportunita</TableCell><TableCell>Termine</TableCell><TableCell>Errore</TableCell></TableRow></TableHead>
             <TableBody>{runs.data?.map(run => <TableRow key={run.screener_run_id}>
-              <TableCell>{new Date(run.started_at).toLocaleString("it-IT")}</TableCell>
+              <TableCell>{formatTimestamp(run.started_at)}</TableCell>
               <TableCell><Chip size="small" label={run.status} color={run.status === "FAILED" ? "error" : run.status === "PARTIAL" ? "warning" : run.status === "SUCCESS" ? "success" : "info"} /></TableCell>
-              <TableCell align="right">{run.opportunity_count}</TableCell><TableCell>{run.completed_at ? new Date(run.completed_at).toLocaleString("it-IT") : "Non conclusa"}</TableCell><TableCell sx={{ overflowWrap: "anywhere" }}>{run.error_message ?? "-"}</TableCell>
+              <TableCell align="right">{run.opportunity_count}</TableCell><TableCell>{run.completed_at ? formatTimestamp(run.completed_at) : "Non conclusa"}</TableCell><TableCell sx={{ overflowWrap: "anywhere" }}>{run.error_message ?? "-"}</TableCell>
             </TableRow>)}</TableBody>
           </Table>
         </TableContainer>
