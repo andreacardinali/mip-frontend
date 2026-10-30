@@ -1,8 +1,15 @@
 import api from "../api/api";
+import type { ScreenerAnalysisResult, ScreenerContext, ScreenerContextType } from "../types/marketScreener";
 import type { ScreenerSnapshotChanges } from "../types/marketScreener";
 import type { ScreenerPerformance, ScreenerPerformanceFilters } from "../types/marketScreener";
 import type { ScreenerFilters, ScreenerOpportunity, ScreenerRankingSnapshot, ScreenerRun, ScreenerSignalEvent, ScreenerSnapshotItem } from "../types/marketScreener";
 export async function getScreenerOpportunities(filters: ScreenerFilters) { return (await api.get<ScreenerOpportunity[]>("/screener", { params: filters })).data; }
+export async function getScreenerContexts() {
+	return (await api.get<ScreenerContext[]>("/screener/contexts")).data;
+}
+export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string }) {
+	return (await api.post<ScreenerAnalysisResult>("/screener/analyze", context)).data;
+}
 export async function getScreenerOpportunity(id: string) { return (await api.get<ScreenerOpportunity>(`/screener/${id}`)).data; }
 export async function getScreenerSignalEvents(id: string, limit = 100) {
 	return (await api.get<ScreenerSignalEvent[]>(`/screener/${id}/signal-events`, { params: { limit } })).data;

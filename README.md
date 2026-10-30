@@ -8,6 +8,21 @@ visible columns. API filters currently load at most 500 opportunities; this is
 not a full-database export. No additional endpoint or database routine is used.
 CSV files use UTF-8 with BOM and formula escaping for spreadsheet safety.
 
+## Contextual Screener
+
+The Screener context selector lists owned watchlists and portfolios plus active
+universes, with instrument counts. Context selection filters existing results;
+the separate analysis action runs the shared backend scan and refreshes results,
+variations and history. Empty contexts and contexts exceeding 1000 instruments
+cannot be analyzed. Backend errors distinguish missing contexts, busy analyses
+and failed requests. Analysis updates the global ranking and creates a history
+snapshot; partial runs are not used for complete comparisons.
+
+Strategy and consensus filters are delegated to SQL. Advanced filters are
+collapsed initially. Optional 60-second data refresh is disabled by default and
+paused during manual analysis; it does not launch analyses. The backend requires
+manual installation of `oneshot/install_screener_contexts.sql`.
+
 ## Contextual Monitoring
 
 Watchlist and portfolio detail pages reuse the account alert rule component for

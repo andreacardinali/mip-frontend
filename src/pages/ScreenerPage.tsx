@@ -6,30 +6,38 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import FiberNewIcon from "@mui/icons-material/FiberNew";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import {
   Alert,
   Box,
   Button,
   Chip,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
+  FormControlLabel,
   MenuItem,
   Paper,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef } from "@mui/x-data-grid";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 
 import {
+  analyzeScreenerContext,
+  getScreenerContexts,
   getScreenerOpportunities,
   getScreenerOpportunity,
   getScreenerRuns,
@@ -102,6 +110,10 @@ export default function ScreenerPage() {
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
   const [minimumScore, setMinimumScore] = useState("0");
   const [query, setQuery] = useState("");
+  const [contextSelection, setContextSelection] = useState("");
+  const [strategy, setStrategy] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [performanceOpen, setPerformanceOpen] = useState(false);
@@ -110,12 +122,37 @@ export default function ScreenerPage() {
   const [changeType, setChangeType] = useState<ScreenerSnapshotChange["change_type"] | "">("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
 
+  const contextsQuery = useQuery({
+    queryKey: ["market-screener-contexts"],
+    queryFn: getScreenerContexts,
+  });
+  const selectedContext = contextsQuery.data?.find(
+    context => `${context.context_type}:${context.context_id}` === contextSelection,
+  );
+  const analysis = useMutation({
+    mutationFn: analyzeScreenerContext,
+    onSuccess: async (): Promise<void> => { await refreshScreener(); },
+  });
+  const refreshInterval = autoRefresh && !analysis.isPending ? 60_000 : false;
+  const analysisError = isAxiosError(analysis.error)
+    ? analysis.error.response?.status === 409
+      ? "Un'altra analisi e' gia' in corso. Riprova al termine."
+      : analysis.error.response?.status === 404
+        ? "Il contesto non e' piu' disponibile."
+        : analysis.error.response?.status === 422
+          ? "Il contesto deve contenere da 1 a 1000 strumenti."
+          : "Impossibile completare l'analisi."
+    : "Impossibile completare l'analisi.";
+
   const filters = useMemo(
     () => ({
       origin: origin || undefined,
       direction: direction || undefined,
       verdict: verdict || undefined,
       consensus_direction: consensusDirection || undefined,
+      strategy_code: strategy.trim().toUpperCase() || undefined,
+      context_type: selectedContext?.context_type,
+      context_id: selectedContext?.context_id,
       portfolio_match:
         portfolioFilter === "YES"
           ? true
@@ -126,12 +163,13 @@ export default function ScreenerPage() {
       query: query.trim() || undefined,
       limit: 500,
     }),
-    [origin, direction, verdict, consensusDirection, portfolioFilter, minimumScore, query],
+    [origin, direction, verdict, consensusDirection, strategy, selectedContext, portfolioFilter, minimumScore, query],
   );
 
   const opportunitiesQuery = useQuery({
     queryKey: ["market-screener", filters],
     queryFn: () => getScreenerOpportunities(filters),
+    refetchInterval: refreshInterval,
   });
 
   const detailQuery = useQuery({
@@ -149,10 +187,12 @@ export default function ScreenerPage() {
   const runsQuery = useQuery({
     queryKey: ["market-screener-runs"],
     queryFn: () => getScreenerRuns(20),
+    refetchInterval: refreshInterval,
   });
   const snapshotsQuery = useQuery({
     queryKey: ["market-screener-snapshots"],
     queryFn: () => getScreenerSnapshots(20),
+    refetchInterval: refreshInterval,
   });
   const snapshotItemsQuery = useQuery({
     queryKey: ["market-screener-snapshot-items", selectedSnapshotId],
@@ -163,6 +203,7 @@ export default function ScreenerPage() {
   const changesQuery = useQuery({
     queryKey: ["market-screener-changes"],
     queryFn: () => getScreenerSnapshotChanges(),
+    refetchInterval: refreshInterval,
   });
   const historicalChangesQuery = useQuery({
     queryKey: ["market-screener-changes", changesSnapshotId],
@@ -403,11 +444,12 @@ export default function ScreenerPage() {
     || (Boolean(selectedSnapshotId) && snapshotItemsQuery.isFetching);
 
   function refreshScreener() {
-    void Promise.all([
+    return Promise.all([
       opportunitiesQuery.refetch(),
       changesQuery.refetch(),
       runsQuery.refetch(),
       snapshotsQuery.refetch(),
+      contextsQuery.refetch(),
       ...(changesOpen && changesSnapshotId ? [historicalChangesQuery.refetch()] : []),
       ...(selectedId ? [detailQuery.refetch()] : []),
       ...(selectedId && selected ? [signalEventsQuery.refetch()] : []),
@@ -424,9 +466,6 @@ export default function ScreenerPage() {
       >
         <Box>
           <Typography variant="h4">Screener</Typography>
-          <Typography color="text.secondary">
-            Opportunità associate all&apos;entità, con match sulle posizioni personali.
-          </Typography>
         </Box>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
           <Button variant="outlined" startIcon={<CompareArrowsIcon />} onClick={() => {
@@ -449,8 +488,8 @@ export default function ScreenerPage() {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            disabled={refreshing}
-            onClick={refreshScreener}
+            disabled={refreshing || analysis.isPending}
+            onClick={() => void refreshScreener()}
           >
             Aggiorna
           </Button>
@@ -518,8 +557,40 @@ export default function ScreenerPage() {
         <DialogActions><Button onClick={() => setChangesOpen(false)}>Chiudi</Button></DialogActions>
       </Dialog>
 
-      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-        <Stack direction={{ xs: "column", lg: "row" }} spacing={2}>
+      <Box sx={{ py: 2, mb: 2, borderBottom: 1, borderColor: "divider" }}>
+        <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap sx={{ flexWrap: "wrap" }}>
+          <TextField select size="small" label="Contesto" value={contextSelection}
+            disabled={analysis.isPending || contextsQuery.isLoading}
+            sx={{ minWidth: 220, flex: 1 }}
+            onChange={event => { setContextSelection(event.target.value); analysis.reset(); }}>
+            <MenuItem value="">Tutte le opportunita</MenuItem>
+            {(contextsQuery.data ?? []).map(context => (
+              <MenuItem key={`${context.context_type}:${context.context_id}`}
+                value={`${context.context_type}:${context.context_id}`} sx={{ whiteSpace: "normal" }}>
+                {context.context_type === "WATCHLIST" ? "Watchlist" : context.context_type === "PORTFOLIO" ? "Portafoglio" : "Universo"}: {context.name} ({context.instrument_count})
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField size="small" label="Cerca" value={query}
+            sx={{ minWidth: 180, flex: 1 }} onChange={event => setQuery(event.target.value)} />
+          <Button variant="contained" startIcon={<PlayArrowIcon />}
+            disabled={analysis.isPending || !selectedContext || selectedContext.instrument_count === 0}
+            onClick={() => { if (selectedContext) analysis.mutate({
+              context_type: selectedContext.context_type, context_id: selectedContext.context_id,
+            }); }}>
+            {analysis.isPending ? "Analisi in corso..." : "Analizza"}
+          </Button>
+          <Tooltip title="Filtri avanzati">
+            <IconButton aria-label="Filtri avanzati" aria-expanded={advancedOpen}
+              onClick={() => setAdvancedOpen(!advancedOpen)} color={advancedOpen ? "primary" : "default"}>
+              <FilterListIcon />
+            </IconButton>
+          </Tooltip>
+          <FormControlLabel control={<Switch checked={autoRefresh}
+            onChange={event => setAutoRefresh(event.target.checked)} />} label="Aggiornamento automatico" />
+        </Stack>
+        <Collapse in={advancedOpen}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap sx={{ flexWrap: "wrap", pt: 2 }}>
           <TextField
             select
             size="small"
@@ -592,16 +663,21 @@ export default function ScreenerPage() {
             slotProps={{ htmlInput: { min: 0, max: 100, step: 5 } }}
             onChange={(event) => setMinimumScore(event.target.value)}
           />
-          <TextField
-            size="small"
-            label="Cerca"
-            placeholder="Entità, simbolo, ISIN o ticker posseduto"
-            value={query}
-            sx={{ minWidth: 260, flex: 1 }}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <TextField size="small" label="Strategia" value={strategy}
+            slotProps={{ htmlInput: { maxLength: 100 } }} sx={{ minWidth: 170 }}
+            onChange={event => setStrategy(event.target.value)} />
         </Stack>
-      </Paper>
+        </Collapse>
+      </Box>
+
+      {contextsQuery.isError && <Alert severity="error" sx={{ mb: 2 }}
+        action={<Button onClick={() => void contextsQuery.refetch()}>Riprova</Button>}>
+        Impossibile caricare i contesti.
+      </Alert>}
+      {analysis.isError && <Alert severity="error" sx={{ mb: 2 }}>{analysisError}</Alert>}
+      {analysis.isSuccess && <Alert severity={analysis.data.status === "SUCCESS" ? "success" : "warning"} sx={{ mb: 2 }}>
+        {analysis.data.status === "SUCCESS" ? "Analisi completata." : "Analisi parziale: alcuni strumenti non sono stati elaborati."}
+      </Alert>}
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }}>
         <Chip label={`${rows.length} opportunità`} />
@@ -635,7 +711,7 @@ export default function ScreenerPage() {
               printOptions: { disableToolbarButton: true },
             },
           }}
-          loading={opportunitiesQuery.isLoading}
+          loading={opportunitiesQuery.isFetching || analysis.isPending}
           getRowId={(row) => row.opportunity_id}
           onRowClick={(params) => setSelectedId(params.row.opportunity_id)}
           initialState={{
