@@ -318,7 +318,12 @@ export default function ScreenerPage() {
         </IconButton>
       </Tooltip>,
     },
-    { field: "ranking_position", headerName: "#", width: 60 },
+    { field: "ranking_position", headerName: "Classifica", hideable: false, disableExport: true },
+    {
+      field: "last_analysis_at", headerName: "Ultima analisi", width: 185, type: "dateTime",
+      valueGetter: value => value ? new Date(value) : null,
+      valueFormatter: (value: Date | null) => value ? value.toLocaleString("it-IT") : "N/D",
+    },
     {
       field: "source_symbol",
       headerName: "Simbolo",
@@ -808,6 +813,7 @@ export default function ScreenerPage() {
           onRowClick={(params) => { setDetailTab("overview"); setSelectedId(params.row.opportunity_id); }}
           initialState={{
             columns: { columnVisibilityModel: {
+              ranking_position: false,
               entity_name: true, direction: false, origin: false, portfolio_match_type: false,
               attention_score: false, technical_score: false, quant_score: false,
             } },
