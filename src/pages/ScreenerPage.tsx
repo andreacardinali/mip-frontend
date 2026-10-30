@@ -5,6 +5,7 @@ import ShowChartIcon from "@mui/icons-material/ShowChart";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import FiberNewIcon from "@mui/icons-material/FiberNew";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
   Alert,
   Box,
@@ -166,6 +167,32 @@ export default function ScreenerPage() {
     .map(change => `${change.current!.instrument_id}:${change.current!.signal_timeframe ?? ""}:${change.current!.signal_id}`));
   const changeLabels = { NEW: "Nuovo ingresso", CHANGED: "Variato", REMOVED: "Uscito" };
   const changeColumns: GridColDef<ScreenerSnapshotChange>[] = [
+    {
+      field: "detail",
+      headerName: "Dettaglio",
+      width: 90,
+      sortable: false,
+      filterable: false,
+      disableExport: true,
+      renderCell: ({ row }) => (
+        <Tooltip title={row.current ? "Apri opportunit\u00e0 attuale" : "Opportunit\u00e0 uscita dalla scansione"}>
+          <span>
+            <IconButton
+              size="small"
+              aria-label="Apri opportunit\u00e0 attuale"
+              disabled={!row.current}
+              onClick={() => {
+                if (!row.current) return;
+                setChangesOpen(false);
+                setSelectedId(row.current.opportunity_id);
+              }}
+            >
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+      ),
+    },
     { field: "change_type", headerName: "Variazione", width: 145,
       renderCell: ({ row }) => <Chip size="small" label={changeLabels[row.change_type]}
         color={row.change_type === "NEW" ? "success" : row.change_type === "REMOVED" ? "error" : "warning"} /> },
