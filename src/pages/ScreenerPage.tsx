@@ -588,7 +588,7 @@ export default function ScreenerPage() {
       </Alert>}
       <Tabs value={pageTab} onChange={(_, value: string) => setPageTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
         <Tab value="results" label="Segnali e analisi" id="screener-results-tab" aria-controls="screener-results" />
-        <Tab value="monitoring" label="Monitoraggio e notifiche" id="screener-monitoring-tab" aria-controls="screener-monitoring" />
+        <Tab value="monitoring" label="Alert di mercato" id="screener-monitoring-tab" aria-controls="screener-monitoring" />
       </Tabs>
       <Box hidden={pageTab !== "results"} role="tabpanel" id="screener-results" aria-labelledby="screener-results-tab">
       {changesQuery.isError && <Alert severity="error" sx={{ mb: 2 }} action={
@@ -864,7 +864,7 @@ export default function ScreenerPage() {
 
       </Box>
       <Box hidden={pageTab !== "monitoring"} role="tabpanel" id="screener-monitoring" aria-labelledby="screener-monitoring-tab">
-        {directScope ? <Alert severity="info">Le notifiche sono disponibili negli ambiti Screener, watchlist e portafoglio.</Alert> : (!contextSelection || selectedContext) && <AlertRuleSettings key={contextSelection || "SCREENER"} context={
+        {directScope ? <Alert severity="info">Gli alert di mercato sono disponibili negli ambiti Screener, watchlist e portafoglio.</Alert> : (!contextSelection || selectedContext) && <AlertRuleSettings key={contextSelection || "SCREENER"} context={
           selectedContext && (selectedContext.context_type === "WATCHLIST" || selectedContext.context_type === "PORTFOLIO")
             ? { scope: selectedContext.context_type, scopeId: selectedContext.context_id }
             : { scope: "SCREENER" }

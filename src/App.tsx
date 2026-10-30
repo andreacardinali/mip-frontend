@@ -10,6 +10,7 @@ import NewsPage from "./pages/NewsPage";
 import CatalystsPage from "./pages/CatalystsPage";
 import ScreenerPage from "./pages/ScreenerPage";
 import SettingsPage from "./pages/SettingsPage";
+import MarketAlertsPage from "./pages/MarketAlertsPage";
 import WatchlistDetailsPage from "./pages/WatchlistDetailsPage";
 import PortfolioDetailsPage from "./pages/PortfolioDetailsPage";
 import SystemSettingsPage from "./pages/SystemSettingsPage";
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/catalysts" element={<CatalystsPage />} />
             <Route path="/screener" element={<ScreenerPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/market-alerts" element={<MarketAlertsPage />} />
             <Route path="/watchlists/:id" element={<WatchlistDetailsPage />} />
             <Route path="/portfolios/:id" element={<PortfolioDetailsPage />} />
             <Route element={<AdminRoute />}>

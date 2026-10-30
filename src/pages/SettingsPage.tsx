@@ -29,10 +29,10 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CurrencySelect from "../components/CurrencySelect";
-import AlertRuleSettings from "../components/AlertRuleSettings";
+import { getAlertRules } from "../services/alerts";
 import { useAuth } from "../contexts/AuthProvider";
 import { updateAccountPreferences } from "../services/auth";
 import { notifyOperationError } from "../services/operationFeedback";
@@ -61,9 +61,13 @@ const emptySource: NotificationSourcePayload = {
   disable_web_page_preview: true,
 };
 
-export default function SettingsPage() {
+export default function SettingsPage({ view = "account" }: { view?: "account" | "delivery" } = {}) {
   const queryClient = useQueryClient();
   const { user, refreshUser } = useAuth();
+  const rules = useQuery({
+    queryKey: ["alert-rules", user?.user_id], queryFn: getAlertRules,
+    enabled: view === "delivery" && !!user,
+  });
   const [reportingCurrencyOverride, setReportingCurrencyOverride] =
     useState<string | null>(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
@@ -92,6 +96,7 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
+    if (view !== "delivery") return;
     let active = true;
     void getNotificationPreferences()
       .then((response) => {
@@ -111,7 +116,7 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [view]);
 
   const notificationsChanged = useMemo(
     () => JSON.stringify(preferences) !== JSON.stringify(savedPreferences),
@@ -248,17 +253,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <Box sx={{ maxWidth: 900, mx: "auto", py: 2 }}>
-      <Typography variant="h4" sx={{ mb: 0.75 }}>Account</Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Gestisci il profilo, la valuta principale e le notifiche.
-      </Typography>
+    <Box sx={{ maxWidth: 1000, mx: "auto", py: 2 }}>
+      {view === "account" && <Typography variant="h4" sx={{ mb: 3 }}>Account</Typography>}
       <Stack spacing={3}>
         {error && <Alert severity="error">{error}</Alert>}
 
-        <AlertRuleSettings />
-
-        <Paper variant="outlined" sx={{ p: 3 }}>
+        {view === "account" && <Paper variant="outlined" sx={{ p: 3 }}>
           <Stack spacing={2.5}>
             <Typography variant="h6">Profilo e preferenze</Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -281,18 +281,15 @@ export default function SettingsPage() {
               >Salva preferenze</Button>
             </Box>
           </Stack>
-        </Paper>
+        </Paper>}
 
-        <Paper variant="outlined" sx={{ p: 3 }}>
+        {view === "delivery" && <Box sx={{ pb: 3, borderBottom: 1, borderColor: "divider" }}>
           <Stack spacing={2.5}>
             <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
               <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
                 <NotificationsActiveIcon color="primary" />
                 <Box>
                   <Typography variant="h6">Destinazioni</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Configura il metodo, la destinazione e la credenziale cifrata.
-                  </Typography>
                 </Box>
               </Box>
               <Button startIcon={<AddIcon />} onClick={openCreateSource}>
@@ -322,21 +319,29 @@ export default function SettingsPage() {
               </Stack>
             ))}
           </Stack>
-        </Paper>
+        </Box>}
 
-        <Paper variant="outlined" sx={{ p: 3 }}>
+        {view === "delivery" && <Box>
           <Stack spacing={2.5}>
-            <Typography variant="h6">Tipologie di notifica</Typography>
+            <Typography variant="h6">Invio per tipo di evento</Typography>
+            {rules.isError && <Alert severity="error">Impossibile verificare le regole attive.</Alert>}
             {isLoadingNotifications ? <CircularProgress /> : (
               <Stack spacing={2} divider={<Divider flexItem />}>
-                {preferences.map((preference) => (
+                {preferences.map((preference) => {
+                  const requiresRule = ["MARKET_SIGNAL", "FIXED_PRICE", "PERCENT_MOVE", "SIGNAL_CHANGE"].includes(preference.notification_type);
+                  const activeCount = rules.data?.filter(rule => rule.enabled && rule.alert_type === preference.notification_type).length ?? 0;
+                  const unavailable = requiresRule && (!rules.isSuccess || activeCount === 0);
+                  return (
                   <Stack key={preference.notification_type} direction={{ xs: "column", md: "row" }} spacing={2} sx={{ alignItems: { xs: "stretch", md: "center" }, justifyContent: "space-between" }}>
                     <Box sx={{ flex: 1 }}>
                       <FormControlLabel
-                        control={<Switch checked={preference.enabled} onChange={(_, checked) => patchPreference(preference.notification_type, { enabled: checked, source_id: checked && !preference.source_id ? enabledSources[0]?.source_id ?? null : preference.source_id })} />}
+                        control={<Switch checked={preference.enabled} disabled={isSavingNotifications || (unavailable && !preference.enabled)} onChange={(_, checked) => patchPreference(preference.notification_type, { enabled: checked, source_id: checked && !preference.source_id ? enabledSources[0]?.source_id ?? null : preference.source_id })} />}
                         label={preference.label}
                       />
                       <Typography variant="body2" color="text.secondary" sx={{ ml: 6 }}>{preference.description}</Typography>
+                      {requiresRule && <Typography variant="body2" color={rules.isSuccess && activeCount === 0 ? "warning.main" : "text.secondary"} sx={{ ml: 6 }}>
+                        {rules.isSuccess ? activeCount ? `${activeCount} regole attive` : "Nessuna regola attiva: nessun evento da inviare." : "Verifica regole in corso"}
+                      </Typography>}
                     </Box>
                     <FormControl size="small" disabled={!preference.enabled} sx={{ minWidth: 280 }}>
                       <InputLabel>Metodo e destinazione</InputLabel>
@@ -345,7 +350,7 @@ export default function SettingsPage() {
                       </Select>
                     </FormControl>
                   </Stack>
-                ))}
+                ); })}
               </Stack>
             )}
             <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
@@ -354,7 +359,7 @@ export default function SettingsPage() {
               </Button>
             </Box>
           </Stack>
-        </Paper>
+        </Box>}
       </Stack>
 
       <Dialog open={sourceDialogOpen} onClose={() => setSourceDialogOpen(false)} fullWidth maxWidth="sm">

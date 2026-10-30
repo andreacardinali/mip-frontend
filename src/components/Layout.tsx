@@ -1,6 +1,6 @@
 import { useContext, useState } from "react";
 import { AppBar, Box, Drawer, FormControlLabel, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Switch, Toolbar, Tooltip, Typography } from "@mui/material";
-import { DashboardOutlined, BusinessOutlined, PublicOutlined, BookmarkBorder, AccountBalanceWalletOutlined, NewspaperOutlined, BoltOutlined, InsightsOutlined, SettingsOutlined, AdminPanelSettingsOutlined, Menu, Logout } from "@mui/icons-material";
+import { DashboardOutlined, BusinessOutlined, PublicOutlined, BookmarkBorder, AccountBalanceWalletOutlined, NewspaperOutlined, BoltOutlined, InsightsOutlined, NotificationsOutlined, SettingsOutlined, AdminPanelSettingsOutlined, Menu, Logout } from "@mui/icons-material";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthProvider";
 import { usePriceRefresh } from "../contexts/PriceRefreshProvider";
@@ -22,6 +22,7 @@ export default function Layout() {
     { label: "News", path: "/news", icon: <NewspaperOutlined /> },
     { label: "Catalizzatori", path: "/catalysts", icon: <BoltOutlined /> },
     { label: "Segnali e analisi", path: "/screener", icon: <InsightsOutlined /> },
+    { label: "Alert di mercato", path: "/market-alerts", icon: <NotificationsOutlined /> },
     { label: "Preferenze", path: "/settings", icon: <SettingsOutlined /> },
   ];
   if (user?.roles.includes("ADMIN")) {
