@@ -1,7 +1,7 @@
 import { useDeferredValue, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, FormControlLabel, LinearProgress, Link, MenuItem, Stack, Switch, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, LinearProgress, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -16,7 +16,6 @@ const timestamp = (value: string | null) => value ? new Date(value).toLocaleStri
 export default function EntitiesPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
-  const [llmEnabled, setLlmEnabled] = useState(false);
   const analysisPending = useIsMutating({ mutationKey: screenerAnalysisMutationKey }) > 0;
   const analysis = useMutation({
     mutationKey: screenerAnalysisMutationKey,
@@ -57,11 +56,9 @@ export default function EntitiesPage() {
       {id && <Button component={RouterLink} to="/entities" startIcon={<ArrowBackIcon />}>Entita</Button>}
       <Typography variant="h4" sx={{ flex: 1, overflowWrap: "anywhere" }}>{overview?.entity.name ?? (id ? "Scheda entita" : "Entita")}</Typography>
       {overview && <>
-        <FormControlLabel control={<Switch checked={llmEnabled} disabled={analysisPending}
-          onChange={event => { setLlmEnabled(event.target.checked); analysis.reset(); }} />} label="Analisi AI" />
         <Button variant="contained" startIcon={<PlayArrowIcon />} disabled={analysisPending || !instrumentRows.length}
           onClick={() => { if (!analysisPending) analysis.mutate({
-            context_type: "ENTITY", context_id: overview.entity.entity_id, llm_enabled: llmEnabled,
+            context_type: "ENTITY", context_id: overview.entity.entity_id,
           }); }}>{analysisPending ? "Analisi in corso..." : "Analizza entita"}</Button>
       </>}
       <Button startIcon={<RefreshIcon />} onClick={() => void current.refetch()} disabled={current.isFetching}>Aggiorna</Button>
@@ -111,7 +108,7 @@ export default function EntitiesPage() {
         { field: "analysis", headerName: "Analisi", width: 130, sortable: false, filterable: false,
           renderCell: ({ row }) => <Button size="small" startIcon={<PlayArrowIcon />} disabled={analysisPending}
             onClick={() => { if (!analysisPending) analysis.mutate({
-              context_type: "INSTRUMENT", context_id: row.instrument_id, llm_enabled: llmEnabled,
+              context_type: "INSTRUMENT", context_id: row.instrument_id,
             }); }}>Analizza</Button> },
         { field: "in_portfolio", headerName: "In portafoglio", type: "boolean", width: 140 },
         { field: "portfolio_quantity", headerName: "Quantita totale", type: "number", width: 145 },

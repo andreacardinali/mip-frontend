@@ -135,7 +135,6 @@ export default function ScreenerPage() {
   const [directContextType, directContextId = ""] = contextSelection.split(":");
   const directScope = directContextType === "ENTITY" || directContextType === "INSTRUMENT"
     ? directContextType : undefined;
-  const [llmEnabled, setLlmEnabled] = useState(false);
   const [pageTab, setPageTab] = useState("results");
   const [detailTab, setDetailTab] = useState("overview");
   const [resultView, setResultView] = useState("all");
@@ -658,14 +657,10 @@ export default function ScreenerPage() {
           </TextField>}
           <TextField size="small" label="Cerca" value={query}
             sx={{ minWidth: 180, flex: 1 }} onChange={event => setQuery(event.target.value)} />
-          <FormControlLabel control={<Switch checked={llmEnabled}
-            disabled={analysisPending || !selectedContext}
-            onChange={event => { setLlmEnabled(event.target.checked); analysis.reset(); }} />} label="Analisi AI" />
           <Button variant="contained" startIcon={<PlayArrowIcon />}
             disabled={analysisPending || !selectedContext || selectedContext.instrument_count === 0}
             onClick={() => { if (selectedContext && !analysisPending) analysis.mutate({
               context_type: selectedContext.context_type, context_id: selectedContext.context_id,
-              llm_enabled: llmEnabled,
             }); }}>
             {analysisPending ? "Analisi in corso..." : directScope === "ENTITY" ? "Analizza entita" : directScope === "INSTRUMENT" ? "Analizza strumento" : "Analizza"}
           </Button>

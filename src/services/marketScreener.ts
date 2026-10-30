@@ -13,7 +13,7 @@ export async function getScreenerContextInstruments(contextType: ScreenerContext
 }
 export const screenerAnalysisMutationKey = ["screener-analysis"] as const;
 let analysisInProgress = false;
-export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string; llm_enabled?:boolean }) {
+export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string }) {
 	if (analysisInProgress) throw new Error("Un'altra analisi e' gia' in corso. Riprova al termine.");
 	analysisInProgress = true;
 	try {
