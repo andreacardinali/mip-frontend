@@ -12,6 +12,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import api from "../api/api";
+import { waitForJobRun, type ExecutionRequest } from "../services/jobRuns";
+import { notifyOperation, notifyOperationError } from "../services/operationFeedback";
 import { useAuth } from "./AuthProvider";
 
 const STORAGE_KEY = "mip.realtime-price-refresh";
@@ -59,13 +61,20 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
 
     refreshInProgress.current = true;
     try {
-      const response = await api.post<{ enqueued_count: number }>("/market-data/prices/refresh", undefined, { silentFeedback });
-      if (response.data.enqueued_count > 0) {
+      const response = await api.post<ExecutionRequest>("/market-data/prices/refresh", undefined, { silentFeedback });
+      const result = await waitForJobRun<{ enqueued_count: number }>(response.data.job_run_id);
+      if (!silentFeedback) {
+        notifyOperation(result.enqueued_count > 0
+          ? `Aggiornamento prezzi: ${result.enqueued_count} strumenti accodati.`
+          : "Aggiornamento prezzi: nessun nuovo aggiornamento da accodare.", "info");
+      }
+      if (result.enqueued_count > 0) {
         pollingDeadline.current = Date.now() + 180_000;
         setWaitingForPrices(true);
       }
       await refetchPriceQueries();
     } catch (error) {
+      if (!silentFeedback) notifyOperationError(error, "Aggiornamento prezzi: esecuzione fallita.");
       console.error("[MIP prices] Live price refresh failed", error);
     } finally {
       refreshInProgress.current = false;
@@ -80,14 +89,19 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!enabled || !authenticated) return undefined;
 
-    void refreshNow(true);
+    const initialRefreshId = window.setTimeout(() => {
+      void refreshNow(true);
+    }, 0);
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === "visible") {
         void refreshNow(true);
       }
     }, REFRESH_INTERVAL_MS);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearTimeout(initialRefreshId);
+      window.clearInterval(intervalId);
+    };
   }, [enabled, authenticated, refreshNow]);
 
   useEffect(() => {

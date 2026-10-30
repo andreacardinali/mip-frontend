@@ -44,7 +44,7 @@ api.interceptors.response.use(
       if (jobMatch && data?.job_run_id) {
         trackJob(data.job_run_id, decodeURIComponent(jobMatch[1]));
         notifyOperation(`${label}: esecuzione richiesta.`);
-      } else if (response.config.url === "/market-data/prices/refresh") {
+      } else if (response.config.url === "/market-data/prices/refresh" && !data?.job_run_id) {
         notifyOperation(data?.enqueued_count > 0
           ? `${label}: ${data.enqueued_count} strumenti accodati.`
           : `${label}: nessun nuovo aggiornamento da accodare.`, "info");

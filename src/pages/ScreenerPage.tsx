@@ -188,9 +188,9 @@ export default function ScreenerPage() {
     queryKey: ["market-screener-progress", selectedContext?.context_type, selectedContext?.context_id],
     queryFn: () => getScreenerAnalysisProgress(selectedContext!.context_type, selectedContext!.context_id),
     enabled: Boolean(selectedContext),
-    refetchInterval: query => analysisPending || query.state.data?.status === "RUNNING" ? 2_000 : 10_000,
+    refetchInterval: query => analysisPending || query.state.data?.status === "RUNNING" || query.state.data?.status === "QUEUED" ? 2_000 : 10_000,
   });
-  const analysisRunning = analysisPending || progressQuery.data?.status === "RUNNING";
+  const analysisRunning = analysisPending || progressQuery.data?.status === "RUNNING" || progressQuery.data?.status === "QUEUED";
   const progress = progressQuery.data?.status === "RUNNING" ? progressQuery.data.phase_results.progress : undefined;
   const progressPercent = progress && progress.total > 0
     ? Math.min(100, Math.max(0, progress.completed / progress.total * 100)) : undefined;
@@ -695,7 +695,8 @@ export default function ScreenerPage() {
         {analysisRunning && <Box role="status" aria-live="polite" sx={{ mt: 2 }}>
           <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: "wrap", justifyContent: "space-between", mb: 1 }}>
             <Typography variant="body2">
-              {progress ? `Analisi tecnica: ${progress.completed}/${progress.total} strumenti`
+              {progressQuery.data?.status === "QUEUED" ? "Analisi in coda allo scheduler"
+                : progress ? `Analisi tecnica: ${progress.completed}/${progress.total} strumenti`
                 : "Avvio analisi..."}
               {progress?.symbol && ` · ${progress.symbol}`}
             </Typography>

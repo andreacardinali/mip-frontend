@@ -1,4 +1,5 @@
 import api from "../api/api";
+import { waitForJobRun, type ExecutionRequest } from "./jobRuns";
 import type { ContextInstrument } from "../types/entity";
 import type { ScreenerAnalysisProgress, ScreenerAnalysisResult, ScreenerContext, ScreenerContextType } from "../types/marketScreener";
 import type { ScreenerSnapshotChanges } from "../types/marketScreener";
@@ -20,7 +21,8 @@ export async function analyzeScreenerContext(context: { context_type:ScreenerCon
 	if (analysisInProgress) throw new Error("Un'altra analisi e' gia' in corso. Riprova al termine.");
 	analysisInProgress = true;
 	try {
-		return (await api.post<ScreenerAnalysisResult>("/screener/analyze", context)).data;
+		const { data } = await api.post<ExecutionRequest>("/screener/analyze", context);
+		return await waitForJobRun<ScreenerAnalysisResult>(data.job_run_id);
 	} finally {
 		analysisInProgress = false;
 	}
