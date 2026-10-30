@@ -1,24 +1,26 @@
 import { useDeferredValue, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, LinearProgress, Link, Stack, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, LinearProgress, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { getEntities, getEntityOverview } from "../services/entities";
+import type { EntityScope } from "../types/entity";
 
 const timestamp = (value: string | null) => value ? new Date(value).toLocaleString("it-IT") : "N/D";
 
 export default function EntitiesPage() {
   const { id } = useParams();
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<EntityScope>("ALL");
   const query = useDeferredValue(search.trim().toLocaleLowerCase());
-  const list = useQuery({ queryKey: ["entities"], queryFn: getEntities, enabled: !id });
+  const list = useQuery({ queryKey: ["entities", scope, query], queryFn: () => getEntities(scope, query), enabled: !id });
   const detail = useQuery({ queryKey: ["entity-overview", id], queryFn: () => getEntityOverview(id!), enabled: Boolean(id) });
   const overview = detail.data;
   const current = id ? detail : list;
-  const rows = (list.data ?? []).filter(row => [row.name, row.symbol, row.exchange, row.entity_type].some(value => value?.toLocaleLowerCase().includes(query)));
+  const rows = list.data ?? [];
 
   return <Stack spacing={2} sx={{ minWidth: 0 }}>
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
@@ -29,14 +31,27 @@ export default function EntitiesPage() {
     {current.isFetching && <LinearProgress />}
     {current.isError && <Alert severity="error">{current.error.message}</Alert>}
     {!id && <>
-      <TextField label="Cerca nome, simbolo, mercato o tipo" value={search} onChange={event => setSearch(event.target.value)} />
-      <Typography variant="caption" color="text.secondary">{rows.length} righe visibili / {list.data?.length ?? 0} caricate (limite API: 500)</Typography>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+        <TextField select label="Mostra" value={scope} onChange={event => setScope(event.target.value as EntityScope)} sx={{ width: { xs: "100%", sm: 240 }, flexShrink: 0 }}>
+          <MenuItem value="ALL">Tutte le entita</MenuItem>
+          <MenuItem value="PORTFOLIO">In portafoglio</MenuItem>
+          <MenuItem value="WATCHLIST">In watchlist</MenuItem>
+          <MenuItem value="SIGNALS">Con segnali attivi</MenuItem>
+        </TextField>
+        <TextField label="Cerca nome, simbolo, mercato o tipo" value={search} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />
+      </Stack>
+      <Typography variant="caption" color="text.secondary">{rows.length} righe{rows.length === 500 ? " (limite raggiunto)" : ""}</Typography>
       <Box sx={{ height: 560, width: "100%" }}><DataGrid loading={list.isPending} rows={rows} getRowId={row => `${row.entity_id}:${row.symbol ?? ""}:${row.exchange ?? ""}`} disableRowSelectionOnClick columns={[
         { field: "name", headerName: "Entita", minWidth: 230, flex: 1, renderCell: ({ row }) => <Link component={RouterLink} to={`/entities/${row.entity_id}`}>{row.name}</Link> },
         { field: "symbol", headerName: "Simbolo", width: 130 },
         { field: "exchange", headerName: "Mercato", width: 150 },
         { field: "entity_type", headerName: "Tipo", width: 150 },
         { field: "country_code", headerName: "Paese", width: 95 },
+        { field: "relevance", headerName: "In evidenza", minWidth: 300, flex: 1, sortable: false, filterable: false, renderCell: ({ row }) => <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", height: "100%" }}>
+          {row.in_portfolio && <Chip size="small" label="Portafoglio" color="success" variant="outlined" />}
+          {row.in_watchlist && <Chip size="small" label="Watchlist" color="info" variant="outlined" />}
+          {row.has_active_signals && <Chip size="small" label="Segnali attivi" color="warning" variant="outlined" />}
+        </Stack> },
       ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>
     </>}
     {overview && <>

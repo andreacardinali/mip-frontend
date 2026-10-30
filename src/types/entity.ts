@@ -1,6 +1,8 @@
 import type { EntityAssetMatch } from "./catalyst";
 import type { ScreenerOpportunity } from "./marketScreener";
 
+export type EntityScope = "ALL" | "PORTFOLIO" | "WATCHLIST" | "SIGNALS";
+
 export interface Entity {
   entity_id: string;
 
@@ -14,6 +16,9 @@ export interface Entity {
   country_code?: string | null;
   description?: string | null;
   active?: boolean;
+  in_portfolio?: boolean;
+  in_watchlist?: boolean;
+  has_active_signals?: boolean;
 }
 
 export interface ContextInstrument {

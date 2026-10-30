@@ -1,5 +1,16 @@
 # React + TypeScript + Vite
 
+## Entity Filters
+
+The Entities page provides scopes for all entities, owned portfolio holdings,
+owned watchlist entries and entities with active screener signals. Scope and
+text search are applied server-side before the 500-row limit. Row indicators
+show portfolio/watchlist membership and active signals. Active signals are not
+labelled as top movers: no price-change threshold is inferred.
+
+The backend requires manual installation of
+`oneshot/install_entity_list_filters.sql` before serving the updated entity list.
+
 ## Screener CSV Export
 
 The Screener grid provides CSV export through the native MUI DataGrid toolbar.

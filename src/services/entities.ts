@@ -1,9 +1,9 @@
 import api from "../api/api";
-import type { Entity, EntityOverview } from "../types/entity";
+import type { Entity, EntityOverview, EntityScope } from "../types/entity";
 
-export async function getEntities() {
+export async function getEntities(scope: EntityScope = "ALL", query = "") {
   const response =
-    await api.get<Entity[]>("/entities");
+    await api.get<Entity[]>("/entities", { params: { scope, query } });
 
   return response.data;
 }
