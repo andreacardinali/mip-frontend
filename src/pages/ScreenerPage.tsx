@@ -40,6 +40,7 @@ import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 
 import {
   analyzeScreenerContext,
+  getScreenerContextInstruments,
   getScreenerContexts,
   getScreenerOpportunities,
   getScreenerOpportunity,
@@ -52,6 +53,7 @@ import {
 import type {
   ConsensusDirection,
   PortfolioMatchType,
+  ScreenerContext,
   ScreenerOpportunity,
   ScreenerSignalEvent,
   ScreenerSnapshotItem,
@@ -127,6 +129,9 @@ export default function ScreenerPage() {
     return next;
   }, { replace: true });
   const contextSelection = searchParams.get("context") ?? "";
+  const [directContextType, directContextId = ""] = contextSelection.split(":");
+  const directScope = directContextType === "ENTITY" || directContextType === "INSTRUMENT"
+    ? directContextType : undefined;
   const [llmEnabled, setLlmEnabled] = useState(false);
   const [pageTab, setPageTab] = useState("results");
   const [detailTab, setDetailTab] = useState("overview");
@@ -145,10 +150,24 @@ export default function ScreenerPage() {
   const contextsQuery = useQuery({
     queryKey: ["market-screener-contexts"],
     queryFn: getScreenerContexts,
+    enabled: !directScope,
   });
-  const selectedContext = contextsQuery.data?.find(
+  const directContextQuery = useQuery({
+    queryKey: ["context-instruments", directScope, directContextId],
+    queryFn: () => getScreenerContextInstruments(directScope!, directContextId),
+    enabled: Boolean(directScope && directContextId),
+  });
+  const directContext: ScreenerContext | undefined = directScope && directContextQuery.data
+    ? {
+      context_type: directScope,
+      context_id: directContextId,
+      name: searchParams.get("context_name") || (directScope === "ENTITY" ? "Entita" : directContextQuery.data[0]?.symbol || "Strumento"),
+      instrument_count: directContextQuery.data.length,
+    } : undefined;
+  const selectedContext = directScope ? directContext : contextsQuery.data?.find(
     context => `${context.context_type}:${context.context_id}` === contextSelection,
   );
+  const contextQuery = directScope ? directContextQuery : contextsQuery;
   const analysis = useMutation({
     mutationFn: analyzeScreenerContext,
     onSuccess: async (): Promise<void> => { await refreshScreener(); },
@@ -484,6 +503,7 @@ export default function ScreenerPage() {
       runsQuery.refetch(),
       snapshotsQuery.refetch(),
       contextsQuery.refetch(),
+      ...(directScope && directContextId ? [directContextQuery.refetch()] : []),
       ...(changesOpen && changesSnapshotId ? [historicalChangesQuery.refetch()] : []),
       ...(selectedId ? [detailQuery.refetch()] : []),
       ...(selectedId && selected ? [signalEventsQuery.refetch()] : []),
@@ -507,17 +527,17 @@ export default function ScreenerPage() {
             setChangeType("");
             setChangesOpen(true);
           }}>
-            Variazioni
+            {directScope ? "Variazioni globali" : "Variazioni"}
           </Button>
           <Button variant="outlined" startIcon={<ShowChartIcon />} onClick={() => setPerformanceOpen(true)}>
-            Performance
+            {directScope ? "Performance globale" : "Performance"}
           </Button>
           <Button
             variant="outlined"
             startIcon={<HistoryIcon />}
             onClick={() => setHistoryOpen(true)}
           >
-            Storico
+            {directScope ? "Storico globale" : "Storico"}
           </Button>
           <Button
             variant="outlined"
@@ -530,9 +550,9 @@ export default function ScreenerPage() {
         </Stack>
       </Stack>
 
-      {contextSelection && !selectedContext && <Alert severity={contextsQuery.isError ? "error" : "info"} sx={{ mb: 2 }}>
-        {contextsQuery.isError ? "Impossibile caricare il contesto selezionato."
-          : contextsQuery.isPending ? "Caricamento del contesto..." : "Il contesto selezionato non e' disponibile."}
+      {contextSelection && !selectedContext && <Alert severity={contextQuery.isError ? "error" : "info"} sx={{ mb: 2 }}>
+        {contextQuery.isError ? "Impossibile caricare l'ambito selezionato."
+          : contextQuery.isPending && (!directScope || directContextId) ? "Caricamento dell'ambito..." : "L'ambito selezionato non e' disponibile."}
       </Alert>}
       <Tabs value={pageTab} onChange={(_, value: string) => setPageTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
         <Tab value="results" label="Segnali e analisi" id="screener-results-tab" aria-controls="screener-results" />
@@ -602,12 +622,16 @@ export default function ScreenerPage() {
 
       <Box sx={{ py: 2, mb: 2, borderBottom: 1, borderColor: "divider" }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap sx={{ flexWrap: "wrap" }}>
-          <TextField select size="small" label="Contesto" value={contextSelection}
+          {directScope ? <Typography sx={{ alignSelf: "center", flex: 1, overflowWrap: "anywhere" }}>
+            {directScope === "ENTITY" ? "Entita" : "Strumento"}: {selectedContext?.name ?? searchParams.get("context_name") ?? directContextId}
+            {selectedContext && ` (${selectedContext.instrument_count} strumenti)`}
+          </Typography> : <TextField select size="small" label="Ambito di analisi" value={contextSelection}
             disabled={analysis.isPending || contextsQuery.isLoading}
             sx={{ minWidth: 220, flex: 1 }}
             onChange={event => {
               const next = new URLSearchParams(searchParams);
               if (event.target.value) next.set("context", event.target.value); else next.delete("context");
+              next.delete("context_name");
               setSearchParams(next);
               setResultView("all"); setSelectedId(null); analysis.reset();
             }}>
@@ -618,7 +642,7 @@ export default function ScreenerPage() {
                 {context.context_type === "WATCHLIST" ? "Watchlist" : context.context_type === "PORTFOLIO" ? "Portafoglio" : "Universo"}: {context.name} ({context.instrument_count})
               </MenuItem>
             ))}
-          </TextField>
+          </TextField>}
           <TextField size="small" label="Cerca" value={query}
             sx={{ minWidth: 180, flex: 1 }} onChange={event => setQuery(event.target.value)} />
           <FormControlLabel control={<Switch checked={llmEnabled}
@@ -630,7 +654,7 @@ export default function ScreenerPage() {
               context_type: selectedContext.context_type, context_id: selectedContext.context_id,
               llm_enabled: llmEnabled,
             }); }}>
-            {analysis.isPending ? "Analisi in corso..." : "Analizza"}
+            {analysis.isPending ? "Analisi in corso..." : directScope === "ENTITY" ? "Analizza entita" : directScope === "INSTRUMENT" ? "Analizza strumento" : "Analizza"}
           </Button>
           <Tooltip title="Filtri avanzati">
             <IconButton aria-label="Filtri avanzati" aria-expanded={advancedOpen}
@@ -728,7 +752,7 @@ export default function ScreenerPage() {
         </Collapse>
       </Box>
 
-      {contextsQuery.isError && <Alert severity="error" sx={{ mb: 2 }}
+      {!directScope && contextsQuery.isError && <Alert severity="error" sx={{ mb: 2 }}
         action={<Button onClick={() => void contextsQuery.refetch()}>Riprova</Button>}>
         Impossibile caricare i contesti.
       </Alert>}
@@ -791,8 +815,8 @@ export default function ScreenerPage() {
 
       </Box>
       <Box hidden={pageTab !== "monitoring"} role="tabpanel" id="screener-monitoring" aria-labelledby="screener-monitoring-tab">
-        {(!contextSelection || selectedContext) && <AlertRuleSettings key={contextSelection || "SCREENER"} context={
-          selectedContext && selectedContext.context_type !== "UNIVERSE"
+        {directScope ? <Alert severity="info">Le notifiche sono disponibili negli ambiti Screener, watchlist e portafoglio.</Alert> : (!contextSelection || selectedContext) && <AlertRuleSettings key={contextSelection || "SCREENER"} context={
+          selectedContext && (selectedContext.context_type === "WATCHLIST" || selectedContext.context_type === "PORTFOLIO")
             ? { scope: selectedContext.context_type, scopeId: selectedContext.context_id }
             : { scope: "SCREENER" }
         } />}

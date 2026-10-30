@@ -6,6 +6,7 @@ import { DataGrid } from "@mui/x-data-grid";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { getEntities, getEntityOverview } from "../services/entities";
 import type { EntityScope } from "../types/entity";
 
@@ -77,8 +78,13 @@ export default function EntitiesPage() {
       {overview.entity.description && <Typography>{overview.entity.description}</Typography>}
       <Typography variant="caption" color="text.secondary">ID: {overview.entity.entity_id} | Paese: {overview.entity.country_code ?? "N/D"} | Osservato: {timestamp(overview.observed_at)}</Typography>
       <Typography variant="h6">Strumenti e prezzi</Typography>
+      <Button component={RouterLink} startIcon={<PlayArrowIcon />} disabled={!instrumentRows.length}
+        to={`/screener?context=ENTITY:${overview.entity.entity_id}&context_name=${encodeURIComponent(overview.entity.name)}`}>Analizza entita</Button>
       <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={instrumentRows} getRowId={row => row.instrument_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 130 }, { field: "exchange", headerName: "Mercato", width: 140 },
+        { field: "analysis", headerName: "Analisi", width: 130, sortable: false, filterable: false,
+          renderCell: ({ row }) => <Button component={RouterLink} size="small" startIcon={<PlayArrowIcon />}
+            to={`/screener?context=INSTRUMENT:${row.instrument_id}&context_name=${encodeURIComponent(`${row.symbol}${row.exchange ? ` (${row.exchange})` : ""}`)}`}>Analizza</Button> },
         { field: "in_portfolio", headerName: "In portafoglio", type: "boolean", width: 140 },
         { field: "portfolio_quantity", headerName: "Quantita totale", type: "number", width: 145 },
         { field: "portfolio_names", headerName: "Portafogli", minWidth: 180, flex: 1 },
@@ -102,7 +108,7 @@ export default function EntitiesPage() {
         { field: "consensus_direction", headerName: "Consenso", width: 130 }, { field: "verdict", headerName: "Verdetto AI", width: 140 },
         { field: "summary", headerName: "Sintesi", minWidth: 260, flex: 1 },
       ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>}
-      <Button component={RouterLink} to={`/screener?query=${encodeURIComponent(overview.entity.name)}`}>Segnali e analisi</Button>
+      <Button component={RouterLink} to={`/screener?context=ENTITY:${overview.entity.entity_id}&context_name=${encodeURIComponent(overview.entity.name)}`}>Segnali e analisi</Button>
       <Typography variant="h6">News ({overview.news.length} / {overview.news_count})</Typography>
       {overview.news.length === 0 && <Typography color="text.secondary">Nessuna news associata.</Typography>}
       {overview.news.map(news => <Box key={news.news_id} sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}>

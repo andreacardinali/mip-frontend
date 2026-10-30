@@ -1,4 +1,5 @@
 import api from "../api/api";
+import type { ContextInstrument } from "../types/entity";
 import type { ScreenerAnalysisResult, ScreenerContext, ScreenerContextType } from "../types/marketScreener";
 import type { ScreenerSnapshotChanges } from "../types/marketScreener";
 import type { ScreenerPerformance, ScreenerPerformanceFilters } from "../types/marketScreener";
@@ -6,6 +7,9 @@ import type { ScreenerFilters, ScreenerOpportunity, ScreenerRankingSnapshot, Scr
 export async function getScreenerOpportunities(filters: ScreenerFilters) { return (await api.get<ScreenerOpportunity[]>("/screener", { params: filters })).data; }
 export async function getScreenerContexts() {
 	return (await api.get<ScreenerContext[]>("/screener/contexts")).data;
+}
+export async function getScreenerContextInstruments(contextType: ScreenerContextType, contextId: string) {
+	return (await api.get<ContextInstrument[]>(`/screener/contexts/${contextType}/${encodeURIComponent(contextId)}/instruments`)).data;
 }
 export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string; llm_enabled?:boolean }) {
 	return (await api.post<ScreenerAnalysisResult>("/screener/analyze", context)).data;
