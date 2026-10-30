@@ -23,12 +23,27 @@ collapsed initially. Optional 60-second data refresh is disabled by default and
 paused during manual analysis; it does not launch analyses. The backend requires
 manual installation of `oneshot/install_screener_contexts.sql`.
 
+## AI Results
+
+Portfolio and watchlist details link directly to Screener with their context
+selected in the URL. The signals table shows the AI verdict, score and summary;
+opening a signal starts on its AI analysis. Technical data and history/positions
+remain available in separate detail tabs. Less-used table columns are initially
+hidden but can be restored through the grid toolbar.
+
+The AI results tab includes persisted signals with an AI score within the current
+filters, not only signals updated by the latest run. The analysis confirmation
+reports updated, selected and failed signals; a run may select no new candidates.
+AI remains optional and disabled by default. Snapshot comparisons, CSV export,
+performance and run history remain available.
+
 ## Contextual Monitoring
 
 Watchlist and portfolio detail pages reuse the account alert rule component for
 rules dedicated to the current collection. New rules default to that collection;
-scope and collection cannot be changed from the contextual editor. Screener shows
-rules scoped to Screener, including older rules with no explicit scope. Account
+scope and collection cannot be changed from the contextual editor. Screener's
+separate monitoring tab shows the selected portfolio/watchlist rules, or Screener
+rules for the global and universe views, including older rules with no explicit scope. Account
 settings remain the complete view for global rules and rules across collections.
 Contextual views share the user-scoped React Query cache, saving API and event
 history with account settings. Navigating between collections resets editor and

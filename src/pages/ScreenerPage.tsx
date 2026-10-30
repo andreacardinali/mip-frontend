@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import HistoryIcon from "@mui/icons-material/History";
 import ShowChartIcon from "@mui/icons-material/ShowChart";
@@ -24,6 +25,8 @@ import {
   Paper,
   Stack,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -94,6 +97,11 @@ function verdictColor(verdict: string | null) {
   return "default" as const;
 }
 
+function verdictLabel(verdict: string | null) {
+  return verdict === "CONFIRM" ? "Confermato" : verdict === "REVIEW" ? "Da valutare"
+    : verdict === "REJECT" ? "Non confermato" : verdict ?? "Non disponibile";
+}
+
 function scoreColor(value: number | null) {
   const numeric = value === null ? null : Number(value);
   if (numeric === null || !Number.isFinite(numeric)) return "text.secondary";
@@ -103,6 +111,7 @@ function scoreColor(value: number | null) {
 }
 
 export default function ScreenerPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [origin, setOrigin] = useState("");
   const [direction, setDirection] = useState("");
   const [verdict, setVerdict] = useState("");
@@ -110,8 +119,11 @@ export default function ScreenerPage() {
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
   const [minimumScore, setMinimumScore] = useState("0");
   const [query, setQuery] = useState("");
-  const [contextSelection, setContextSelection] = useState("");
+  const contextSelection = searchParams.get("context") ?? "";
   const [llmEnabled, setLlmEnabled] = useState(false);
+  const [pageTab, setPageTab] = useState("results");
+  const [detailTab, setDetailTab] = useState("overview");
+  const [resultView, setResultView] = useState("all");
   const [strategy, setStrategy] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -170,6 +182,7 @@ export default function ScreenerPage() {
   const opportunitiesQuery = useQuery({
     queryKey: ["market-screener", filters],
     queryFn: () => getScreenerOpportunities(filters),
+    enabled: !contextSelection || Boolean(selectedContext),
     refetchInterval: refreshInterval,
   });
 
@@ -263,10 +276,22 @@ export default function ScreenerPage() {
         ? `${(item.supporting_strategies ?? []).join(", ") || "-"}; ${(item.opposing_strategies ?? []).join(", ") || "-"}` : "-").join(" → ") },
   ];
 
-  const rows = opportunitiesQuery.data ?? [];
+  const allRows = contextSelection && !selectedContext ? [] : opportunitiesQuery.data ?? [];
+  const aiCount = allRows.filter(row => row.llm_score !== null).length;
+  const rows = resultView === "ai" ? allRows.filter(row => row.llm_score !== null) : allRows;
   const portfolioCount = rows.filter((row) => row.portfolio_match).length;
 
   const columns: GridColDef<ScreenerOpportunity>[] = [
+    {
+      field: "detail", headerName: "", width: 55, sortable: false, filterable: false,
+      disableExport: true,
+      renderCell: ({ row }) => <Tooltip title={`Apri analisi di ${row.source_symbol}`}>
+        <IconButton aria-label={`Apri analisi di ${row.source_symbol}`} size="small"
+          onClick={event => { event.stopPropagation(); setDetailTab("overview"); setSelectedId(row.opportunity_id); }}>
+          <OpenInNewIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>,
+    },
     { field: "ranking_position", headerName: "#", width: 60 },
     {
       field: "source_symbol",
@@ -395,7 +420,7 @@ export default function ScreenerPage() {
     },
     {
       field: "llm_score",
-      headerName: "LLM",
+      headerName: "Score AI",
       width: 80,
       renderCell: ({ row }) => (
         <Typography
@@ -410,7 +435,7 @@ export default function ScreenerPage() {
     },
     {
       field: "composite_score",
-      headerName: "Composite",
+      headerName: "Score totale",
       width: 110,
       renderCell: ({ row }) => (
         <Typography
@@ -425,15 +450,23 @@ export default function ScreenerPage() {
     },
     {
       field: "verdict",
-      headerName: "Verdetto",
-      width: 110,
+      headerName: "Valutazione",
+      width: 150,
       renderCell: ({ row }) => (
         <Chip
           size="small"
           color={verdictColor(row.verdict)}
-          label={row.verdict ?? "N/D"}
+          label={verdictLabel(row.verdict)}
         />
       ),
+    },
+    {
+      field: "summary", headerName: "Sintesi AI", minWidth: 250, flex: 1,
+      renderCell: ({ row }) => <Tooltip title={row.summary ?? "Sintesi AI non disponibile"}>
+        <Typography variant="body2" noWrap sx={{ alignSelf: "center", minWidth: 0 }}>
+          {row.summary || (row.llm_score === null ? "Non analizzato con AI" : "Sintesi non disponibile")}
+        </Typography>
+      </Tooltip>,
     },
   ];
 
@@ -466,7 +499,7 @@ export default function ScreenerPage() {
         sx={{ justifyContent: "space-between", mb: 2 }}
       >
         <Box>
-          <Typography variant="h4">Screener</Typography>
+          <Typography variant="h4" sx={{ overflowWrap: "anywhere" }}>{selectedContext ? `Segnali: ${selectedContext.name}` : "Screener"}</Typography>
         </Box>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
           <Button variant="outlined" startIcon={<CompareArrowsIcon />} onClick={() => {
@@ -497,6 +530,15 @@ export default function ScreenerPage() {
         </Stack>
       </Stack>
 
+      {contextSelection && !selectedContext && <Alert severity={contextsQuery.isError ? "error" : "info"} sx={{ mb: 2 }}>
+        {contextsQuery.isError ? "Impossibile caricare il contesto selezionato."
+          : contextsQuery.isPending ? "Caricamento del contesto..." : "Il contesto selezionato non e' disponibile."}
+      </Alert>}
+      <Tabs value={pageTab} onChange={(_, value: string) => setPageTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
+        <Tab value="results" label="Segnali e analisi" id="screener-results-tab" aria-controls="screener-results" />
+        <Tab value="monitoring" label="Monitoraggio e notifiche" id="screener-monitoring-tab" aria-controls="screener-monitoring" />
+      </Tabs>
+      <Box hidden={pageTab !== "results"} role="tabpanel" id="screener-results" aria-labelledby="screener-results-tab">
       {changesQuery.isError && <Alert severity="error" sx={{ mb: 2 }} action={
         <IconButton aria-label="Riprova variazioni" onClick={() => void changesQuery.refetch()}><RefreshIcon /></IconButton>
       }>Impossibile caricare le variazioni dello screener.</Alert>}
@@ -563,7 +605,12 @@ export default function ScreenerPage() {
           <TextField select size="small" label="Contesto" value={contextSelection}
             disabled={analysis.isPending || contextsQuery.isLoading}
             sx={{ minWidth: 220, flex: 1 }}
-            onChange={event => { setContextSelection(event.target.value); analysis.reset(); }}>
+            onChange={event => {
+              const next = new URLSearchParams(searchParams);
+              if (event.target.value) next.set("context", event.target.value); else next.delete("context");
+              setSearchParams(next);
+              setResultView("all"); setSelectedId(null); analysis.reset();
+            }}>
             <MenuItem value="">Tutte le opportunita</MenuItem>
             {(contextsQuery.data ?? []).map(context => (
               <MenuItem key={`${context.context_type}:${context.context_id}`}
@@ -685,13 +732,16 @@ export default function ScreenerPage() {
         {analysis.data.llm_enrichment && <Box component="span" sx={{ display: "block" }}>
           {analysis.data.llm_enrichment.status === "FAILED"
             ? "AI non disponibile."
-            : `AI: ${analysis.data.llm_enrichment.enriched ?? 0} segnali arricchiti, ${analysis.data.llm_enrichment.failed ?? 0} non elaborati.`}
+            : `AI: ${analysis.data.llm_enrichment.enriched ?? 0} segnali aggiornati su ${analysis.data.llm_enrichment.selected ?? 0} selezionati; ${analysis.data.llm_enrichment.failed ?? 0} non elaborati.`}
         </Box>}
       </Alert>}
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }}>
-        <Chip label={`${rows.length} opportunità`} />
-        <Chip color="primary" label={`${portfolioCount} collegate al portafoglio`} />
+        <Typography variant="body2" sx={{ alignSelf: "center" }}>{rows.length} segnali · {portfolioCount} collegati al portafoglio</Typography>
+        <Tabs value={resultView} onChange={(_, value: string) => setResultView(value)} aria-label="Risultati disponibili">
+          <Tab value="all" label="Tutti" />
+          <Tab value="ai" label={`Con analisi AI (${aiCount})`} />
+        </Tabs>
         {latestRun && (
           <Chip
             color={latestRun.status === "SUCCESS" ? "success" : latestRun.status === "PARTIAL" ? "warning" : "error"}
@@ -700,6 +750,9 @@ export default function ScreenerPage() {
         )}
       </Stack>
 
+      {resultView === "ai" && !opportunitiesQuery.isFetching && !opportunitiesQuery.isError && !rows.length && (
+        <Alert severity="info" sx={{ mb: 2 }}>Nessuna analisi AI disponibile per i segnali e i filtri selezionati.</Alert>
+      )}
       {opportunitiesQuery.isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Impossibile caricare lo screener entity-centric.
@@ -723,8 +776,12 @@ export default function ScreenerPage() {
           }}
           loading={opportunitiesQuery.isFetching || analysis.isPending}
           getRowId={(row) => row.opportunity_id}
-          onRowClick={(params) => setSelectedId(params.row.opportunity_id)}
+          onRowClick={(params) => { setDetailTab("overview"); setSelectedId(params.row.opportunity_id); }}
           initialState={{
+            columns: { columnVisibilityModel: {
+              entity_name: false, direction: false, origin: false, portfolio_match_type: false,
+              attention_score: false, technical_score: false, quant_score: false,
+            } },
             pagination: { paginationModel: { pageSize: 25, page: 0 } },
             sorting: {
               sortModel: [{ field: "ranking_position", sort: "asc" }],
@@ -735,7 +792,14 @@ export default function ScreenerPage() {
         />
       </Paper>
 
-      <AlertRuleSettings context={{ scope: "SCREENER" }} />
+      </Box>
+      <Box hidden={pageTab !== "monitoring"} role="tabpanel" id="screener-monitoring" aria-labelledby="screener-monitoring-tab">
+        {(!contextSelection || selectedContext) && <AlertRuleSettings key={contextSelection || "SCREENER"} context={
+          selectedContext && selectedContext.context_type !== "UNIVERSE"
+            ? { scope: selectedContext.context_type, scopeId: selectedContext.context_id }
+            : { scope: "SCREENER" }
+        } />}
+      </Box>
       <SignalPerformanceHistory open={performanceOpen} onClose={() => setPerformanceOpen(false)} />
 
       <Dialog
@@ -747,6 +811,11 @@ export default function ScreenerPage() {
         <DialogTitle>
           {selected?.entity_name ?? "Dettaglio opportunità"}
         </DialogTitle>
+        <Tabs value={detailTab} onChange={(_, value: string) => setDetailTab(value)} variant="scrollable" scrollButtons="auto">
+          <Tab value="overview" label="Analisi AI" id="signal-overview-tab" aria-controls="signal-overview" />
+          <Tab value="technical" label="Dati tecnici" id="signal-technical-tab" aria-controls="signal-technical" />
+          <Tab value="history" label="Storico e posizioni" id="signal-history-tab" aria-controls="signal-history" />
+        </Tabs>
         <DialogContent dividers>
           {detailQuery.isLoading && <Typography>Caricamento…</Typography>}
           {detailQuery.isError && (
@@ -779,7 +848,21 @@ export default function ScreenerPage() {
                 />
               </Stack>
 
-              <Paper variant="outlined" sx={{ p: 2 }}>
+              <Box hidden={detailTab !== "overview"} role="tabpanel" id="signal-overview" aria-labelledby="signal-overview-tab">
+                <Typography variant="h6" sx={{ mb: 1 }}>Valutazione AI</Typography>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mb: 2 }}>
+                  <Chip label={verdictLabel(selected.verdict)} color={verdictColor(selected.verdict)} />
+                  <Chip label={`Score AI: ${score(selected.llm_score)}`} />
+                  <Chip label={`Score totale: ${score(selected.composite_score)}`} />
+                </Stack>
+                {selected.summary ? <Typography sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{selected.summary}</Typography>
+                  : <Alert severity="info">{selected.llm_score === null
+                    ? "Questo segnale non ha un'analisi AI disponibile."
+                    : "Valutazione AI disponibile senza sintesi testuale."}</Alert>}
+              </Box>
+
+              <Box hidden={detailTab !== "technical"} role="tabpanel" id="signal-technical" aria-labelledby="signal-technical-tab">
+              <Box>
                 <Typography variant="h6" sx={{ mb: 1 }}>Segnale tecnico</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mb: 2 }}>
                   <Chip color="primary" label={selected.strategy_code ?? "Strategia N/D"} />
@@ -794,11 +877,30 @@ export default function ScreenerPage() {
                 <Typography sx={{ mt: 1 }}>
                   Motivi: {(selected.signal_reasons ?? []).length ? (selected.signal_reasons ?? []).join(", ") : "N/D"}
                 </Typography>
-                <Box component="pre" sx={{ mt: 2, p: 1.5, bgcolor: "action.hover", borderRadius: 1, overflow: "auto", whiteSpace: "pre-wrap" }}>
+                <Box component="details" sx={{ mt: 2 }}>
+                <Typography component="summary" sx={{ cursor: "pointer" }}>Indicatori tecnici completi</Typography>
+                <Box component="pre" sx={{ mt: 2, p: 1.5, bgcolor: "action.hover", borderRadius: 1, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                   {JSON.stringify(selected.technical_evidence ?? {}, null, 2)}
                 </Box>
-              </Paper>
+                </Box>
+              </Box>
+              <Typography sx={{ mt: 2 }}>
+                Attention {score(selected.attention_score)} · Technical {score(selected.technical_score)} · Quant {score(selected.quant_score)}
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 2 }}>Consenso strategie</Typography>
+              <Typography>Direzione: {selected.consensus_direction} · Long: {selected.bullish_strategy_count} · Short: {selected.bearish_strategy_count}</Typography>
+              <Typography>Consenso: {score(selected.consensus_score)} · Conflitto: {score(selected.conflict_score)}</Typography>
+              <Typography>Favorevoli: {selected.supporting_strategies.join(", ") || "N/D"}</Typography>
+              <Typography>Contrarie: {selected.opposing_strategies.join(", ") || "N/D"}</Typography>
+              <Box component="details" sx={{ mt: 2 }}>
+                <Typography component="summary" sx={{ cursor: "pointer" }}>Dati completi dell'analisi</Typography>
+                <Box component="pre" sx={{ p: 2, maxHeight: 360, overflow: "auto", bgcolor: "action.hover", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                  {JSON.stringify(selected.evidence ?? {}, null, 2)}
+                </Box>
+              </Box>
+              </Box>
 
+              <Stack hidden={detailTab !== "history"} spacing={3} role="tabpanel" id="signal-history" aria-labelledby="signal-history-tab" sx={{ display: detailTab === "history" ? "flex" : "none" }}>
               <Box sx={{ minWidth: 0 }}>
                 <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1 }}>
                   <Typography variant="h6">Storico segnali</Typography>
@@ -897,52 +999,7 @@ export default function ScreenerPage() {
                 </Stack>
               </Box>
 
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="h6">Consenso strategie</Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, my: 1 }}>
-                  <Chip label={`Direzione: ${selected.consensus_direction}`} color={selected.consensus_direction === "CONFLICT" ? "warning" : selected.consensus_direction === "LONG" ? "success" : selected.consensus_direction === "SHORT" ? "error" : "default"} />
-                  <Chip label={`Long: ${selected.bullish_strategy_count}`} />
-                  <Chip label={`Short: ${selected.bearish_strategy_count}`} />
-                  <Chip label={`Consenso: ${score(selected.consensus_score)}`} />
-                  <Chip label={`Conflitto: ${score(selected.conflict_score)}`} />
-                </Stack>
-                <Typography>Favorevoli: {selected.supporting_strategies.join(", ") || "N/D"}</Typography>
-                <Typography>Contrarie: {selected.opposing_strategies.join(", ") || "N/D"}</Typography>
-              </Paper>
-
-              <Box>
-                <Typography variant="h6">Punteggi</Typography>
-                <Typography>
-                  Attention {score(selected.attention_score)} · Technical {score(selected.technical_score)} · Quant {score(selected.quant_score)} · LLM {score(selected.llm_score)} · Composite {score(selected.composite_score)}
-                </Typography>
-              </Box>
-
-              {selected.summary && (
-                <Box>
-                  <Typography variant="h6">Sintesi LLM</Typography>
-                  <Typography>{selected.summary}</Typography>
-                </Box>
-              )}
-
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1 }}>Evidence</Typography>
-                <Box
-                  component="pre"
-                  sx={{
-                    m: 0,
-                    p: 2,
-                    maxHeight: 360,
-                    overflow: "auto",
-                    bgcolor: "action.hover",
-                    borderRadius: 1,
-                    whiteSpace: "pre-wrap",
-                    overflowWrap: "anywhere",
-                    textAlign: "left",
-                  }}
-                >
-                  {JSON.stringify(selected.evidence ?? {}, null, 2)}
-                </Box>
-              </Box>
+              </Stack>
             </Stack>
           )}
         </DialogContent>

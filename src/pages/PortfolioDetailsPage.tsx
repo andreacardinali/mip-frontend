@@ -23,6 +23,7 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
+import AnalyticsIcon from "@mui/icons-material/Analytics";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridRowSelectionModel } from "@mui/x-data-grid";
 
@@ -317,6 +318,8 @@ export default function PortfolioDetailsPage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          flexWrap: "wrap",
+          gap: 2,
           mb: 2,
         }}
       >
@@ -326,9 +329,15 @@ export default function PortfolioDetailsPage() {
           </Button>
           <Typography variant="h4">Portfolio Details</Typography>
         </Stack>
-        <Button variant="contained" onClick={openAddDialog}>
-          Add Position
-        </Button>
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+          <Button startIcon={<AnalyticsIcon />} disabled={!id}
+            onClick={() => navigate(`/screener?context=${encodeURIComponent(`PORTFOLIO:${id}`)}`)}>
+            Segnali e analisi AI
+          </Button>
+          <Button variant="contained" onClick={openAddDialog}>
+            Add Position
+          </Button>
+        </Stack>
       </Box>
 
       <Paper sx={{ p: 2, mb: 2 }}>

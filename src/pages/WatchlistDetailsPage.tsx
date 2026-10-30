@@ -20,6 +20,7 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteIcon from "@mui/icons-material/Delete";
+import AnalyticsIcon from "@mui/icons-material/Analytics";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridRowModel, GridRowSelectionModel } from "@mui/x-data-grid";
 
@@ -178,13 +179,18 @@ export default function WatchlistDetailsPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 2, mb: 2 }}>
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/watchlists")}>
             Watchlists
           </Button>
           <Typography variant="h4">Watchlist Details</Typography>
         </Stack>
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+        <Button startIcon={<AnalyticsIcon />} disabled={!id}
+          onClick={() => navigate(`/screener?context=${encodeURIComponent(`WATCHLIST:${id}`)}`)}>
+          Segnali e analisi AI
+        </Button>
         <Button
           variant="contained"
           onClick={() => {
@@ -195,6 +201,7 @@ export default function WatchlistDetailsPage() {
         >
           Add Entities
         </Button>
+        </Stack>
       </Box>
 
       <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
