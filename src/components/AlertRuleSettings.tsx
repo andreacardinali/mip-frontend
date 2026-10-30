@@ -9,7 +9,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import {
-  Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions,
+  Alert, Autocomplete, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions,
   DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem,
   Stack, Switch, TextField, Tooltip, Typography,
 } from "@mui/material";
@@ -19,6 +19,7 @@ import { useAuth } from "../contexts/AuthProvider";
 import { deleteAlertRule, getAlertEvents, getAlertRules, saveAlertRule, setAlertRuleEnabled } from "../services/alerts";
 import { getWatchlists } from "../services/watchlists";
 import { getPortfolios } from "../services/portfolios";
+import { getInstruments } from "../services/instruments";
 import { notifyOperationError } from "../services/operationFeedback";
 import InstrumentAlertOverrides from "./InstrumentAlertOverrides";
 import type { AlertConditions, AlertRule, AlertRulePayload } from "../services/alerts";
@@ -67,7 +68,7 @@ function emptyRule(): AlertRulePayload {
 }
 
 const filters = [
-  ["symbols", "Simboli"], ["excluded_symbols", "Simboli esclusi"],
+  ["symbols", "Simboli da includere"], ["excluded_symbols", "Simboli da escludere"],
   ["directions", "Direzioni"], ["verdicts", "Verdetti"],
   ["origins", "Origini"], ["strategy_codes", "Strategie di supporto"],
 ] as const;
@@ -118,6 +119,16 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
       return (await getPortfolios()).map(row => ({ id: row.portfolio_id, name: row.name }));
     },
   });
+  const instruments = useQuery<{ instrument_id: string; symbol: string }[]>({
+    queryKey: ["instruments"], queryFn: getInstruments, enabled: !!user && open,
+  });
+  const symbolOptions = Array.from(new Set([
+    ...(instruments.data?.map(item => item.symbol) ?? []),
+    ...(rules.data?.flatMap(rule => [
+      ...(rule.conditions.symbols ?? []), ...(rule.conditions.excluded_symbols ?? []),
+    ]) ?? []),
+    ...form.conditions.symbols, ...form.conditions.excluded_symbols,
+  ].map(symbol => symbol.trim().toUpperCase()).filter(Boolean))).sort();
 
   function edit(rule?: AlertRule) {
     const defaults = emptyRule();
@@ -377,12 +388,12 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                 </TextField>
               </Stack>
               {(form.conditions.scope === "WATCHLIST" || form.conditions.scope === "PORTFOLIO") && (
-                <TextField select fullWidth label="Collezione" value={form.conditions.scope_id ?? ""}
+                <TextField select fullWidth label={form.conditions.scope === "PORTFOLIO" ? "Seleziona portafoglio" : "Seleziona watchlist"} value={form.conditions.scope_id ?? ""}
                   disabled={busy || !!context || collections.isPending || collections.isError}
                   onChange={event => condition("scope_id", event.target.value || undefined)}>
-                  <MenuItem value="">Tutte le mie collezioni</MenuItem>
+                  <MenuItem value="">{form.conditions.scope === "PORTFOLIO" ? "Tutti i miei portafogli" : "Tutte le mie watchlist"}</MenuItem>
                   {form.conditions.scope_id && !collections.data?.some(row => row.id === form.conditions.scope_id) && (
-                    <MenuItem value={form.conditions.scope_id}>Collezione non disponibile</MenuItem>
+                    <MenuItem value={form.conditions.scope_id}>{form.conditions.scope === "PORTFOLIO" ? "Portafoglio non disponibile" : "Watchlist non disponibile"}</MenuItem>
                   )}
                   {collections.data?.map(row => <MenuItem key={row.id} value={row.id}>{row.name}</MenuItem>)}
                 </TextField>
@@ -401,10 +412,25 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                   <MenuItem value="TELEGRAM">Telegram</MenuItem>
                 </TextField>
               </Stack>
+              {instruments.isError && <Alert severity="error" action={
+                <IconButton aria-label="Riprova simboli" onClick={() => void instruments.refetch()}><RefreshIcon /></IconButton>
+              }>Impossibile caricare il catalogo dei simboli.</Alert>}
               {filters.filter(([key]) => !priceRule || key === "symbols" || key === "excluded_symbols").map(([key, label]) => (
-                <Autocomplete key={key} multiple freeSolo autoSelect options={Array.from(new Set(rules.data?.flatMap(rule => rule.conditions[key] ?? []) ?? []))}
+                <Autocomplete key={key} multiple freeSolo autoSelect
+                  disableCloseOnSelect={key === "symbols" || key === "excluded_symbols"}
+                  loading={(key === "symbols" || key === "excluded_symbols") && instruments.isPending}
+                  options={key === "symbols" || key === "excluded_symbols" ? symbolOptions
+                    : Array.from(new Set(rules.data?.flatMap(rule => rule.conditions[key] ?? []) ?? []))}
                   value={form.conditions[key]} disabled={busy}
-                  onChange={(_, values) => condition(key, values.map(value => value.trim().toUpperCase()).filter(Boolean))}
+                  onChange={(_, values) => condition(key, Array.from(new Set(values.map(value => value.trim().toUpperCase()).filter(Boolean))))}
+                  renderOption={key === "symbols" || key === "excluded_symbols" ? (props, option, { selected }) => {
+                    const { key: optionKey, ...optionProps } = props;
+                    return <li key={optionKey} {...optionProps}>
+                      <Checkbox checked={selected} tabIndex={-1} disableRipple
+                        sx={{ mr: 1, pointerEvents: "none" }} slotProps={{ input: { "aria-hidden": true } }} />
+                      {option}
+                    </li>;
+                  } : undefined}
                   renderInput={params => <TextField {...params} label={label} />} />
               ))}
               {form.alert_type === "SIGNAL_CHANGE" && (
