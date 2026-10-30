@@ -129,7 +129,10 @@ export default function EntitiesPage() {
         {overview.universes.map(universe => <Typography key={universe.universe_id}><Link component={RouterLink} to={`/universes/${universe.universe_id}`}>{universe.name}</Link> | {universe.code} | {universe.universe_type}</Typography>)}
         {!overview.asset_match.in_portfolio && overview.universes.length === 0 && <Typography color="text.secondary">Nessun portafoglio o universo associato.</Typography>}
       </Stack>
-      <Typography variant="h6">Segnali screener attivi</Typography>
+      <Stack direction="row" sx={{ alignItems: "baseline", gap: 1, flexWrap: "wrap" }}>
+        <Typography variant="h6">Segnali screener attivi</Typography>
+        <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(overview.last_analysis_at ?? null)}</Typography>
+      </Stack>
       {overview.opportunities.length === 0 ? <Typography color="text.secondary">Nessun segnale attivo.</Typography> : <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.opportunities} getRowId={row => row.opportunity_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 120 }, { field: "strategy_code", headerName: "Strategia", width: 160 },
         { field: "direction", headerName: "Direzione", width: 115 }, { field: "composite_score", headerName: "Score", width: 100 },

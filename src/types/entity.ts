@@ -44,5 +44,6 @@ export interface EntityOverview {
   catalyst_count: number;
   catalysts: { catalyst_id: string; title: string | null; catalyst_type: string | null; catalyst_day: string; status: string | null; importance: number | string | null; source: string | null }[];
   opportunities: ScreenerOpportunity[];
+  last_analysis_at: string | null;
   observed_at: string;
 }
