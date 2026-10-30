@@ -7,9 +7,18 @@ owned watchlist entries and entities with active screener signals. Scope and
 text search are applied server-side before the 500-row limit. Row indicators
 show portfolio/watchlist membership and active signals. Active signals are not
 labelled as top movers: no price-change threshold is inferred.
+The list shows one row per entity, without symbol or exchange columns; search
+still matches any of the entity's instruments.
+
+In entity details, the instruments grid shows exact-instrument portfolio
+membership, total quantity across the user's portfolios and portfolio names.
+Watchlists contain entities rather than instruments, so the column is labelled
+`Watchlist (entita)` and shows the entity's watchlist names for every instrument.
+These columns use the existing overview asset-match payload.
 
 The backend requires manual installation of
 `oneshot/install_entity_list_filters.sql` before serving the updated entity list.
+Reapply the installer when upgrading from the previous list implementation.
 
 ## Screener CSV Export
 

@@ -21,6 +21,20 @@ export default function EntitiesPage() {
   const overview = detail.data;
   const current = id ? detail : list;
   const rows = list.data ?? [];
+  const instrumentRows = overview?.instruments.map(instrument => {
+    const positions = overview.asset_match.portfolio_positions.filter(
+      position => position.instrument_id === instrument.instrument_id,
+    );
+    return {
+      ...instrument,
+      in_portfolio: positions.length > 0,
+      portfolio_quantity: positions.length > 0
+        ? positions.reduce((total, position) => total + Number(position.quantity), 0)
+        : null,
+      portfolio_names: [...new Set(positions.map(position => position.portfolio_name))].join(", "),
+      watchlist_names: overview.asset_match.watchlist_names.join(", "),
+    };
+  }) ?? [];
 
   return <Stack spacing={2} sx={{ minWidth: 0 }}>
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
@@ -40,11 +54,9 @@ export default function EntitiesPage() {
         </TextField>
         <TextField label="Cerca nome, simbolo, mercato o tipo" value={search} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />
       </Stack>
-      <Typography variant="caption" color="text.secondary">{rows.length} righe{rows.length === 500 ? " (limite raggiunto)" : ""}</Typography>
-      <Box sx={{ height: 560, width: "100%" }}><DataGrid loading={list.isPending} rows={rows} getRowId={row => `${row.entity_id}:${row.symbol ?? ""}:${row.exchange ?? ""}`} disableRowSelectionOnClick columns={[
+      <Typography variant="caption" color="text.secondary">{rows.length} entita{rows.length === 500 ? " (limite raggiunto)" : ""}</Typography>
+      <Box sx={{ height: 560, width: "100%" }}><DataGrid loading={list.isPending} rows={rows} getRowId={row => row.entity_id} disableRowSelectionOnClick columns={[
         { field: "name", headerName: "Entita", minWidth: 230, flex: 1, renderCell: ({ row }) => <Link component={RouterLink} to={`/entities/${row.entity_id}`}>{row.name}</Link> },
-        { field: "symbol", headerName: "Simbolo", width: 130 },
-        { field: "exchange", headerName: "Mercato", width: 150 },
         { field: "entity_type", headerName: "Tipo", width: 150 },
         { field: "country_code", headerName: "Paese", width: 95 },
         { field: "relevance", headerName: "In evidenza", minWidth: 300, flex: 1, sortable: false, filterable: false, renderCell: ({ row }) => <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", height: "100%" }}>
@@ -65,8 +77,12 @@ export default function EntitiesPage() {
       {overview.entity.description && <Typography>{overview.entity.description}</Typography>}
       <Typography variant="caption" color="text.secondary">ID: {overview.entity.entity_id} | Paese: {overview.entity.country_code ?? "N/D"} | Osservato: {timestamp(overview.observed_at)}</Typography>
       <Typography variant="h6">Strumenti e prezzi</Typography>
-      <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.instruments} getRowId={row => row.instrument_id} disableRowSelectionOnClick columns={[
+      <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={instrumentRows} getRowId={row => row.instrument_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 130 }, { field: "exchange", headerName: "Mercato", width: 140 },
+        { field: "in_portfolio", headerName: "In portafoglio", type: "boolean", width: 140 },
+        { field: "portfolio_quantity", headerName: "Quantita totale", type: "number", width: 145 },
+        { field: "portfolio_names", headerName: "Portafogli", minWidth: 180, flex: 1 },
+        { field: "watchlist_names", headerName: "Watchlist (entita)", minWidth: 180, flex: 1 },
         { field: "currency_code", headerName: "Valuta", width: 95 }, { field: "instrument_type", headerName: "Tipo", width: 130 },
         { field: "last_price", headerName: "Ultimo prezzo", width: 145 },
         { field: "price_as_of", headerName: "Timestamp prezzo", width: 210, valueFormatter: timestamp },
