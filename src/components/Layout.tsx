@@ -62,7 +62,7 @@ export default function Layout() {
             <Tooltip title="Esci"><IconButton aria-label="Esci" onClick={logout}><Logout /></IconButton></Tooltip>
           </Toolbar>
         </AppBar>
-        <Box component="main" id="main-content" sx={{ flex: 1, minHeight: 0, overflow: "auto", p: { xs: 1.5, md: 3 } }}>
+        <Box component="main" id="main-content" sx={{ flex: 1, minHeight: 0, display: location.pathname === "/system-settings" ? "flex" : "block", flexDirection: "column", overflow: location.pathname === "/system-settings" ? "hidden" : "auto", p: { xs: 1.5, md: 3 } }}>
           <Outlet />
         </Box>
       </Box>

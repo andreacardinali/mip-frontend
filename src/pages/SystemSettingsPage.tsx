@@ -451,11 +451,11 @@ export default function SystemSettingsPage() {
   }
 
   return (
-    <Box sx={{ height: "calc(100svh - 112px)", minHeight: 360, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
-        sx={{ alignItems: { sm: "center" }, mb: 2 }}
+        sx={{ alignItems: { sm: "center" }, mb: 2, flexShrink: 0 }}
       >
         <Box sx={{ flex: 1 }}>
           <Typography variant="h4" gutterBottom>
@@ -579,13 +579,14 @@ export default function SystemSettingsPage() {
                   spacing={2}
                   sx={{ alignItems: { lg: "center" } }}
                 >
-                  <Box sx={{ flex: 1 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
                       <Typography variant="h6">{job.job_name}</Typography>
                       <Chip size="small" label={job.last_status ?? "Mai eseguito"} color={statusColor(job.last_status)} />
                       {job.last_run_at && <Typography variant="body2" color="text.secondary">{formatTimestamp(job.last_run_at)}</Typography>}
                     </Stack>
-                    <Typography variant="body2" color="text.secondary">
+                    {job.description && <Typography variant="body2" sx={{ mt: 0.5, overflowWrap: "anywhere" }}>{job.description}</Typography>}
+                    <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
                       {job.job_key} · {job.python_module}
                     </Typography>
                     {job.request_only ? <Typography variant="body2" sx={{ mt: 0.75 }}>Su richiesta contestuale</Typography>
