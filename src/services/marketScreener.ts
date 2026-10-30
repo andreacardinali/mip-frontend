@@ -11,8 +11,16 @@ export async function getScreenerContexts() {
 export async function getScreenerContextInstruments(contextType: ScreenerContextType, contextId: string) {
 	return (await api.get<ContextInstrument[]>(`/screener/contexts/${contextType}/${encodeURIComponent(contextId)}/instruments`)).data;
 }
+export const screenerAnalysisMutationKey = ["screener-analysis"] as const;
+let analysisInProgress = false;
 export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string; llm_enabled?:boolean }) {
-	return (await api.post<ScreenerAnalysisResult>("/screener/analyze", context)).data;
+	if (analysisInProgress) throw new Error("Un'altra analisi e' gia' in corso. Riprova al termine.");
+	analysisInProgress = true;
+	try {
+		return (await api.post<ScreenerAnalysisResult>("/screener/analyze", context)).data;
+	} finally {
+		analysisInProgress = false;
+	}
 }
 export async function getScreenerOpportunity(id: string) { return (await api.get<ScreenerOpportunity>(`/screener/${id}`)).data; }
 export async function getScreenerSignalEvents(id: string, limit = 100) {

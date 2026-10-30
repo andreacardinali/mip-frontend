@@ -34,12 +34,13 @@ import {
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef } from "@mui/x-data-grid";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 
 import {
   analyzeScreenerContext,
+  screenerAnalysisMutationKey,
   getScreenerContextInstruments,
   getScreenerContexts,
   getScreenerOpportunities,
@@ -113,6 +114,8 @@ function scoreColor(value: number | null) {
 }
 
 export default function ScreenerPage() {
+  const queryClient = useQueryClient();
+  const analysisPending = useIsMutating({ mutationKey: screenerAnalysisMutationKey }) > 0;
   const [searchParams, setSearchParams] = useSearchParams();
   const [origin, setOrigin] = useState("");
   const [direction, setDirection] = useState("");
@@ -169,10 +172,15 @@ export default function ScreenerPage() {
   );
   const contextQuery = directScope ? directContextQuery : contextsQuery;
   const analysis = useMutation({
+    mutationKey: screenerAnalysisMutationKey,
     mutationFn: analyzeScreenerContext,
-    onSuccess: async (): Promise<void> => { await refreshScreener(); },
+    onSuccess: async (): Promise<void> => {
+      await refreshScreener();
+      await queryClient.invalidateQueries({ queryKey: ["entity-overview"] });
+      await queryClient.invalidateQueries({ queryKey: ["entities"] });
+    },
   });
-  const refreshInterval = autoRefresh && !analysis.isPending ? 60_000 : false;
+  const refreshInterval = autoRefresh && !analysisPending ? 60_000 : false;
 
   const filters = useMemo(
     () => ({
@@ -542,7 +550,7 @@ export default function ScreenerPage() {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            disabled={refreshing || analysis.isPending}
+            disabled={refreshing || analysisPending}
             onClick={() => void refreshScreener()}
           >
             Aggiorna
@@ -626,7 +634,7 @@ export default function ScreenerPage() {
             {directScope === "ENTITY" ? "Entita" : "Strumento"}: {selectedContext?.name ?? searchParams.get("context_name") ?? directContextId}
             {selectedContext && ` (${selectedContext.instrument_count} strumenti)`}
           </Typography> : <TextField select size="small" label="Ambito di analisi" value={contextSelection}
-            disabled={analysis.isPending || contextsQuery.isLoading}
+            disabled={analysisPending || contextsQuery.isLoading}
             sx={{ minWidth: 220, flex: 1 }}
             onChange={event => {
               const next = new URLSearchParams(searchParams);
@@ -646,15 +654,15 @@ export default function ScreenerPage() {
           <TextField size="small" label="Cerca" value={query}
             sx={{ minWidth: 180, flex: 1 }} onChange={event => setQuery(event.target.value)} />
           <FormControlLabel control={<Switch checked={llmEnabled}
-            disabled={analysis.isPending || !selectedContext}
+            disabled={analysisPending || !selectedContext}
             onChange={event => { setLlmEnabled(event.target.checked); analysis.reset(); }} />} label="Analisi AI" />
           <Button variant="contained" startIcon={<PlayArrowIcon />}
-            disabled={analysis.isPending || !selectedContext || selectedContext.instrument_count === 0}
-            onClick={() => { if (selectedContext) analysis.mutate({
+            disabled={analysisPending || !selectedContext || selectedContext.instrument_count === 0}
+            onClick={() => { if (selectedContext && !analysisPending) analysis.mutate({
               context_type: selectedContext.context_type, context_id: selectedContext.context_id,
               llm_enabled: llmEnabled,
             }); }}>
-            {analysis.isPending ? "Analisi in corso..." : directScope === "ENTITY" ? "Analizza entita" : directScope === "INSTRUMENT" ? "Analizza strumento" : "Analizza"}
+            {analysisPending ? "Analisi in corso..." : directScope === "ENTITY" ? "Analizza entita" : directScope === "INSTRUMENT" ? "Analizza strumento" : "Analizza"}
           </Button>
           <Tooltip title="Filtri avanzati">
             <IconButton aria-label="Filtri avanzati" aria-expanded={advancedOpen}
@@ -795,7 +803,7 @@ export default function ScreenerPage() {
               printOptions: { disableToolbarButton: true },
             },
           }}
-          loading={opportunitiesQuery.isFetching || analysis.isPending}
+          loading={opportunitiesQuery.isFetching || analysisPending}
           getRowId={(row) => row.opportunity_id}
           onRowClick={(params) => { setDetailTab("overview"); setSelectedId(params.row.opportunity_id); }}
           initialState={{

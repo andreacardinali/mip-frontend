@@ -1,19 +1,34 @@
 import { useDeferredValue, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, LinearProgress, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, FormControlLabel, LinearProgress, Link, MenuItem, Stack, Switch, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { getEntities, getEntityOverview } from "../services/entities";
+import { analyzeScreenerContext, screenerAnalysisMutationKey } from "../services/marketScreener";
 import type { EntityScope } from "../types/entity";
 
 const timestamp = (value: string | null) => value ? new Date(value).toLocaleString("it-IT") : "N/D";
 
 export default function EntitiesPage() {
   const { id } = useParams();
+  const queryClient = useQueryClient();
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  const analysisPending = useIsMutating({ mutationKey: screenerAnalysisMutationKey }) > 0;
+  const analysis = useMutation({
+    mutationKey: screenerAnalysisMutationKey,
+    mutationFn: analyzeScreenerContext,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ predicate: entry => {
+        const key = entry.queryKey[0];
+        return key === "entities" || key === "entity-overview"
+          || (typeof key === "string" && key.startsWith("market-screener"));
+      } });
+    },
+  });
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<EntityScope>("ALL");
   const query = useDeferredValue(search.trim().toLocaleLowerCase());
@@ -41,8 +56,21 @@ export default function EntitiesPage() {
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
       {id && <Button component={RouterLink} to="/entities" startIcon={<ArrowBackIcon />}>Entita</Button>}
       <Typography variant="h4" sx={{ flex: 1, overflowWrap: "anywhere" }}>{overview?.entity.name ?? (id ? "Scheda entita" : "Entita")}</Typography>
+      {overview && <>
+        <FormControlLabel control={<Switch checked={llmEnabled} disabled={analysisPending}
+          onChange={event => { setLlmEnabled(event.target.checked); analysis.reset(); }} />} label="Analisi AI" />
+        <Button variant="contained" startIcon={<PlayArrowIcon />} disabled={analysisPending || !instrumentRows.length}
+          onClick={() => { if (!analysisPending) analysis.mutate({
+            context_type: "ENTITY", context_id: overview.entity.entity_id, llm_enabled: llmEnabled,
+          }); }}>{analysisPending ? "Analisi in corso..." : "Analizza entita"}</Button>
+      </>}
       <Button startIcon={<RefreshIcon />} onClick={() => void current.refetch()} disabled={current.isFetching}>Aggiorna</Button>
     </Stack>
+    {id && analysisPending && <LinearProgress />}
+    {analysis.isError && <Alert severity="error">{analysis.error.message}</Alert>}
+    {analysis.isSuccess && analysis.variables.context_id === id && <Alert severity="success">Analisi entita completata.</Alert>}
+    {analysis.isSuccess && analysis.variables.context_type === "INSTRUMENT" && overview?.instruments.some(instrument => instrument.instrument_id === analysis.variables.context_id)
+      && <Alert severity="success">Analisi strumento completata.</Alert>}
     {current.isFetching && <LinearProgress />}
     {current.isError && <Alert severity="error">{current.error.message}</Alert>}
     {!id && <>
@@ -78,13 +106,13 @@ export default function EntitiesPage() {
       {overview.entity.description && <Typography>{overview.entity.description}</Typography>}
       <Typography variant="caption" color="text.secondary">ID: {overview.entity.entity_id} | Paese: {overview.entity.country_code ?? "N/D"} | Osservato: {timestamp(overview.observed_at)}</Typography>
       <Typography variant="h6">Strumenti e prezzi</Typography>
-      <Button component={RouterLink} startIcon={<PlayArrowIcon />} disabled={!instrumentRows.length}
-        to={`/screener?context=ENTITY:${overview.entity.entity_id}&context_name=${encodeURIComponent(overview.entity.name)}`}>Analizza entita</Button>
       <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={instrumentRows} getRowId={row => row.instrument_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 130 }, { field: "exchange", headerName: "Mercato", width: 140 },
         { field: "analysis", headerName: "Analisi", width: 130, sortable: false, filterable: false,
-          renderCell: ({ row }) => <Button component={RouterLink} size="small" startIcon={<PlayArrowIcon />}
-            to={`/screener?context=INSTRUMENT:${row.instrument_id}&context_name=${encodeURIComponent(`${row.symbol}${row.exchange ? ` (${row.exchange})` : ""}`)}`}>Analizza</Button> },
+          renderCell: ({ row }) => <Button size="small" startIcon={<PlayArrowIcon />} disabled={analysisPending}
+            onClick={() => { if (!analysisPending) analysis.mutate({
+              context_type: "INSTRUMENT", context_id: row.instrument_id, llm_enabled: llmEnabled,
+            }); }}>Analizza</Button> },
         { field: "in_portfolio", headerName: "In portafoglio", type: "boolean", width: 140 },
         { field: "portfolio_quantity", headerName: "Quantita totale", type: "number", width: 145 },
         { field: "portfolio_names", headerName: "Portafogli", minWidth: 180, flex: 1 },
