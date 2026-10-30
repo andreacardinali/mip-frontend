@@ -1,5 +1,6 @@
 import api from "../api/api";
 import { waitForJobRun, type ExecutionRequest } from "./jobRuns";
+import { notifyOperation, notifyOperationError } from "./operationFeedback";
 import type { ContextInstrument } from "../types/entity";
 import type { ScreenerAnalysisProgress, ScreenerAnalysisResult, ScreenerContext, ScreenerContextType } from "../types/marketScreener";
 import type { ScreenerSnapshotChanges } from "../types/marketScreener";
@@ -18,11 +19,22 @@ export async function getScreenerAnalysisProgress(contextType: ScreenerContextTy
 export const screenerAnalysisMutationKey = ["screener-analysis"] as const;
 let analysisInProgress = false;
 export async function analyzeScreenerContext(context: { context_type:ScreenerContextType; context_id:string }) {
-	if (analysisInProgress) throw new Error("Un'altra analisi e' gia' in corso. Riprova al termine.");
+	if (analysisInProgress) {
+		const error = new Error("Un'altra analisi e' gia' in corso. Riprova al termine.");
+		notifyOperationError(error, error.message);
+		throw error;
+	}
 	analysisInProgress = true;
 	try {
 		const { data } = await api.post<ExecutionRequest>("/screener/analyze", context);
-		return await waitForJobRun<ScreenerAnalysisResult>(data.job_run_id);
+		const result = await waitForJobRun<ScreenerAnalysisResult>(data.job_run_id);
+		notifyOperation(result.status === "FAILED" ? "Analisi fallita."
+			: result.status === "PARTIAL" ? "Analisi completata parzialmente." : "Analisi completata.",
+			result.status === "FAILED" ? "error" : result.status === "PARTIAL" ? "warning" : "success");
+		return result;
+	} catch (error) {
+		notifyOperationError(error, error instanceof Error ? error.message : "Analisi non riuscita.");
+		throw error;
 	} finally {
 		analysisInProgress = false;
 	}

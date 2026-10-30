@@ -389,13 +389,13 @@ export default function SystemSettingsPage() {
                       {job.job_key} · {job.python_module}
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 0.75 }}>
-                      {job.trigger_type === "cron"
+                      {job.request_only ? "Su richiesta contestuale" : job.trigger_type === "cron"
                         ? `Cron: ${job.cron_expression ?? "non configurato"}`
                         : `Intervallo: ${job.interval_minutes ?? 0} minuti`}
                     </Typography>
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.25, sm: 3 }} sx={{ mt: 0.75 }}>
                       <Typography variant="body2">Ultima esecuzione: {formatTimestamp(job.last_run_at)}</Typography>
-                      <Typography variant="body2">Prossima esecuzione: {formatTimestamp(job.next_run_at)}</Typography>
+                      {!job.request_only && <Typography variant="body2">Prossima esecuzione: {formatTimestamp(job.next_run_at)}</Typography>}
                     </Stack>
                     {job.last_error && <Alert severity="error" sx={{ mt: 1 }}>{job.last_error}</Alert>}
                   </Box>
@@ -406,18 +406,18 @@ export default function SystemSettingsPage() {
                       disabled={loadingRunsKey !== null}
                       onClick={() => void openLatestRun(job.job_key)}
                     >{job.last_status === "RUNNING" ? "Run attivo" : "Ultimo run"}</Button>
-                    <Button
+                    {!job.request_only && <Button
                       variant="contained"
                       startIcon={runningJobKey === job.job_key ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
                       disabled={runningJobKey !== null}
                       onClick={() => void runJob(job)}
                     >
                       Esegui ora
-                    </Button>
-                    <FormControlLabel
+                    </Button>}
+                    {!job.request_only && <FormControlLabel
                       control={<Switch checked={job.enabled} disabled={updatingJobKey === job.job_key} onChange={() => void toggleJob(job)} />}
                       label={job.enabled ? "Abilitato" : "Disabilitato"}
-                    />
+                    />}
                   </Stack>
                 </Stack>
 

@@ -63,11 +63,11 @@ export default function EntitiesPage() {
       </>}
       <Button startIcon={<RefreshIcon />} onClick={() => void current.refetch()} disabled={current.isFetching}>Aggiorna</Button>
     </Stack>
+    {overview && <Stack direction="row" sx={{ gap: 1, columnGap: 3, flexWrap: "wrap" }}>
+      <Typography variant="caption" color="text.secondary">Scheda aggiornata alle: {timestamp(overview.observed_at)}</Typography>
+      <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(overview.last_analysis_at ?? null)}</Typography>
+    </Stack>}
     {id && analysisPending && <LinearProgress />}
-    {analysis.isError && <Alert severity="error">{analysis.error.message}</Alert>}
-    {analysis.isSuccess && analysis.variables.context_id === id && <Alert severity="success">Analisi entita completata.</Alert>}
-    {analysis.isSuccess && analysis.variables.context_type === "INSTRUMENT" && overview?.instruments.some(instrument => instrument.instrument_id === analysis.variables.context_id)
-      && <Alert severity="success">Analisi strumento completata.</Alert>}
     {current.isFetching && <LinearProgress />}
     {current.isError && <Alert severity="error">{current.error.message}</Alert>}
     {!id && <>
@@ -101,7 +101,7 @@ export default function EntitiesPage() {
         <Chip label={`News: ${overview.news_count}`} /><Chip label={`Catalizzatori: ${overview.catalyst_count}`} /><Chip label={`Segnali attivi: ${overview.opportunities.length}`} />
       </Stack>
       {overview.entity.description && <Typography>{overview.entity.description}</Typography>}
-      <Typography variant="caption" color="text.secondary">ID: {overview.entity.entity_id} | Paese: {overview.entity.country_code ?? "N/D"} | Osservato: {timestamp(overview.observed_at)}</Typography>
+      <Typography variant="caption" color="text.secondary">ID: {overview.entity.entity_id} | Paese: {overview.entity.country_code ?? "N/D"}</Typography>
       <Typography variant="h6">Strumenti e prezzi</Typography>
       <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={instrumentRows} getRowId={row => row.instrument_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 130 }, { field: "exchange", headerName: "Mercato", width: 140 },
@@ -126,10 +126,7 @@ export default function EntitiesPage() {
         {overview.universes.map(universe => <Typography key={universe.universe_id}><Link component={RouterLink} to={`/universes/${universe.universe_id}`}>{universe.name}</Link> | {universe.code} | {universe.universe_type}</Typography>)}
         {!overview.asset_match.in_portfolio && overview.universes.length === 0 && <Typography color="text.secondary">Nessun portafoglio o universo associato.</Typography>}
       </Stack>
-      <Stack direction="row" sx={{ alignItems: "baseline", gap: 1, flexWrap: "wrap" }}>
-        <Typography variant="h6">Segnali screener attivi</Typography>
-        <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(overview.last_analysis_at ?? null)}</Typography>
-      </Stack>
+      <Typography variant="h6">Segnali screener attivi</Typography>
       {overview.opportunities.length === 0 ? <Typography color="text.secondary">Nessun segnale attivo.</Typography> : <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.opportunities} getRowId={row => row.opportunity_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 120 }, { field: "strategy_code", headerName: "Strategia", width: 160 },
         { field: "direction", headerName: "Direzione", width: 115 }, { field: "composite_score", headerName: "Score", width: 100 },

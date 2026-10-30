@@ -5,6 +5,7 @@ export interface SchedulerJob {
   job_key: string;
   job_name: string;
   python_module: string;
+  request_only: boolean;
   trigger_type: "cron" | "interval";
   cron_expression: string | null;
   interval_minutes: number | null;
