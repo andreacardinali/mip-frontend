@@ -1,6 +1,6 @@
 import api from "../api/api";
 import type { ContextInstrument } from "../types/entity";
-import type { ScreenerAnalysisResult, ScreenerContext, ScreenerContextType } from "../types/marketScreener";
+import type { ScreenerAnalysisProgress, ScreenerAnalysisResult, ScreenerContext, ScreenerContextType } from "../types/marketScreener";
 import type { ScreenerSnapshotChanges } from "../types/marketScreener";
 import type { ScreenerPerformance, ScreenerPerformanceFilters } from "../types/marketScreener";
 import type { ScreenerFilters, ScreenerOpportunity, ScreenerRankingSnapshot, ScreenerRun, ScreenerSignalEvent, ScreenerSnapshotItem } from "../types/marketScreener";
@@ -10,6 +10,9 @@ export async function getScreenerContexts() {
 }
 export async function getScreenerContextInstruments(contextType: ScreenerContextType, contextId: string) {
 	return (await api.get<ContextInstrument[]>(`/screener/contexts/${contextType}/${encodeURIComponent(contextId)}/instruments`)).data;
+}
+export async function getScreenerAnalysisProgress(contextType: ScreenerContextType, contextId: string) {
+	return (await api.get<ScreenerAnalysisProgress | null>(`/screener/contexts/${contextType}/${encodeURIComponent(contextId)}/progress`)).data;
 }
 export const screenerAnalysisMutationKey = ["screener-analysis"] as const;
 let analysisInProgress = false;

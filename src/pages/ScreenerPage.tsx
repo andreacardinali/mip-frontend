@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 
 import HistoryIcon from "@mui/icons-material/History";
@@ -22,6 +22,7 @@ import {
   IconButton,
   FormControlLabel,
   Link,
+  LinearProgress,
   MenuItem,
   Paper,
   Stack,
@@ -42,6 +43,7 @@ import {
   analyzeScreenerContext,
   screenerAnalysisMutationKey,
   getScreenerContextInstruments,
+  getScreenerAnalysisProgress,
   getScreenerContexts,
   getScreenerOpportunities,
   getScreenerOpportunity,
@@ -173,13 +175,30 @@ export default function ScreenerPage() {
   const analysis = useMutation({
     mutationKey: screenerAnalysisMutationKey,
     mutationFn: analyzeScreenerContext,
-    onSuccess: async (): Promise<void> => {
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["market-screener-progress"] });
       await refreshScreener();
+    },
+    onSuccess: async (): Promise<void> => {
       await queryClient.invalidateQueries({ queryKey: ["entity-overview"] });
       await queryClient.invalidateQueries({ queryKey: ["entities"] });
     },
   });
-  const refreshInterval = autoRefresh && !analysisPending ? 60_000 : false;
+  const progressQuery = useQuery({
+    queryKey: ["market-screener-progress", selectedContext?.context_type, selectedContext?.context_id],
+    queryFn: () => getScreenerAnalysisProgress(selectedContext!.context_type, selectedContext!.context_id),
+    enabled: Boolean(selectedContext),
+    refetchInterval: query => analysisPending || query.state.data?.status === "RUNNING" ? 2_000 : 10_000,
+  });
+  const analysisRunning = analysisPending || progressQuery.data?.status === "RUNNING";
+  const progress = progressQuery.data?.status === "RUNNING" ? progressQuery.data.phase_results.progress : undefined;
+  const progressPercent = progress && progress.total > 0
+    ? Math.min(100, Math.max(0, progress.completed / progress.total * 100)) : undefined;
+  const completedAt = progressQuery.data?.completed_at;
+  useEffect(() => {
+    if (completedAt) void queryClient.invalidateQueries({ queryKey: ["market-screener"] });
+  }, [completedAt, queryClient]);
+  const refreshInterval = autoRefresh && !analysisRunning ? 60_000 : false;
 
   const filters = useMemo(
     () => ({
@@ -208,7 +227,7 @@ export default function ScreenerPage() {
     queryKey: ["market-screener", filters],
     queryFn: () => getScreenerOpportunities(filters),
     enabled: !contextSelection || Boolean(selectedContext),
-    refetchInterval: refreshInterval,
+    refetchInterval: analysisRunning ? 2_000 : refreshInterval,
   });
 
   const detailQuery = useQuery({
@@ -554,7 +573,7 @@ export default function ScreenerPage() {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            disabled={refreshing || analysisPending}
+            disabled={refreshing || analysisRunning}
             onClick={() => void refreshScreener()}
           >
             Aggiorna
@@ -638,7 +657,7 @@ export default function ScreenerPage() {
             {directScope === "ENTITY" ? "Entita" : "Strumento"}: {selectedContext?.name ?? searchParams.get("context_name") ?? directContextId}
             {selectedContext && ` (${selectedContext.instrument_count} strumenti)`}
           </Typography> : <TextField select size="small" label="Ambito di analisi" value={selectedContext ? contextSelection : ""}
-            disabled={analysisPending || contextsQuery.isLoading}
+            disabled={analysisRunning || contextsQuery.isLoading}
             sx={{ minWidth: 220, flex: 1 }}
             onChange={event => {
               const next = new URLSearchParams(searchParams);
@@ -658,11 +677,11 @@ export default function ScreenerPage() {
           <TextField size="small" label="Cerca" value={query}
             sx={{ minWidth: 180, flex: 1 }} onChange={event => setQuery(event.target.value)} />
           <Button variant="contained" startIcon={<PlayArrowIcon />}
-            disabled={analysisPending || !selectedContext || selectedContext.instrument_count === 0}
-            onClick={() => { if (selectedContext && !analysisPending) analysis.mutate({
+            disabled={analysisRunning || !selectedContext || selectedContext.instrument_count === 0}
+            onClick={() => { if (selectedContext && !analysisRunning) analysis.mutate({
               context_type: selectedContext.context_type, context_id: selectedContext.context_id,
             }); }}>
-            {analysisPending ? "Analisi in corso..." : directScope === "ENTITY" ? "Analizza entita" : directScope === "INSTRUMENT" ? "Analizza strumento" : "Analizza"}
+            {analysisRunning ? "Analisi in corso..." : directScope === "ENTITY" ? "Analizza entita" : directScope === "INSTRUMENT" ? "Analizza strumento" : "Analizza"}
           </Button>
           <Tooltip title="Filtri avanzati">
             <IconButton aria-label="Filtri avanzati" aria-expanded={advancedOpen}
@@ -673,6 +692,25 @@ export default function ScreenerPage() {
           <FormControlLabel control={<Switch checked={autoRefresh}
             onChange={event => setAutoRefresh(event.target.checked)} />} label="Aggiornamento automatico" />
         </Stack>
+        {analysisRunning && <Box role="status" aria-live="polite" sx={{ mt: 2 }}>
+          <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: "wrap", justifyContent: "space-between", mb: 1 }}>
+            <Typography variant="body2">
+              {progress ? `Analisi tecnica: ${progress.completed}/${progress.total} strumenti`
+                : "Avvio analisi..."}
+              {progress?.symbol && ` · ${progress.symbol}`}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {progressPercent === 100 ? "Finalizzazione analisi e ranking..."
+                : progressPercent !== undefined ? `${Math.round(progressPercent)}%` : ""}
+            </Typography>
+          </Stack>
+          <LinearProgress aria-label="Avanzamento analisi screener"
+            variant={progressPercent === undefined || progressPercent === 100 ? "indeterminate" : "determinate"}
+            value={progressPercent} />
+        </Box>}
+        {analysisRunning && progressQuery.isError && <Alert severity="warning" sx={{ mt: 2 }}>
+          Impossibile leggere l'avanzamento. L'analisi potrebbe essere ancora in corso.
+        </Alert>}
         <Collapse in={advancedOpen}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap sx={{ flexWrap: "wrap", pt: 2 }}>
           <TextField
@@ -803,7 +841,7 @@ export default function ScreenerPage() {
               printOptions: { disableToolbarButton: true },
             },
           }}
-          loading={opportunitiesQuery.isFetching || analysisPending}
+          loading={opportunitiesQuery.isPending}
           getRowId={(row) => row.opportunity_id}
           onRowClick={(params) => { setDetailTab("overview"); setSelectedId(params.row.opportunity_id); }}
           initialState={{
