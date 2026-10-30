@@ -54,12 +54,12 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
     });
   }, [queryClient]);
 
-  const refreshNow = useCallback(async () => {
+  const refreshNow = useCallback(async (silentFeedback = false) => {
     if (!authenticated || refreshInProgress.current) return;
 
     refreshInProgress.current = true;
     try {
-      const response = await api.post<{ enqueued_count: number }>("/market-data/prices/refresh");
+      const response = await api.post<{ enqueued_count: number }>("/market-data/prices/refresh", undefined, { silentFeedback });
       if (response.data.enqueued_count > 0) {
         pollingDeadline.current = Date.now() + 180_000;
         setWaitingForPrices(true);
@@ -80,10 +80,10 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!enabled || !authenticated) return undefined;
 
-    void refreshNow();
+    void refreshNow(true);
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        void refreshNow();
+        void refreshNow(true);
       }
     }, REFRESH_INTERVAL_MS);
 

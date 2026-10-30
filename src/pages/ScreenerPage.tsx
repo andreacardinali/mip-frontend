@@ -35,7 +35,6 @@ import {
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef } from "@mui/x-data-grid";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 
@@ -155,15 +154,6 @@ export default function ScreenerPage() {
     onSuccess: async (): Promise<void> => { await refreshScreener(); },
   });
   const refreshInterval = autoRefresh && !analysis.isPending ? 60_000 : false;
-  const analysisError = isAxiosError(analysis.error)
-    ? analysis.error.response?.status === 409
-      ? "Un'altra analisi e' gia' in corso. Riprova al termine."
-      : analysis.error.response?.status === 404
-        ? "Il contesto non e' piu' disponibile."
-        : analysis.error.response?.status === 422
-          ? "Il contesto deve contenere da 1 a 1000 strumenti."
-          : "Impossibile completare l'analisi."
-    : "Impossibile completare l'analisi.";
 
   const filters = useMemo(
     () => ({
@@ -741,15 +731,6 @@ export default function ScreenerPage() {
       {contextsQuery.isError && <Alert severity="error" sx={{ mb: 2 }}
         action={<Button onClick={() => void contextsQuery.refetch()}>Riprova</Button>}>
         Impossibile caricare i contesti.
-      </Alert>}
-      {analysis.isError && <Alert severity="error" sx={{ mb: 2 }}>{analysisError}</Alert>}
-      {analysis.isSuccess && <Alert severity={analysis.data.status === "SUCCESS" ? "success" : "warning"} sx={{ mb: 2 }}>
-        {analysis.data.status === "SUCCESS" ? "Analisi completata." : "Analisi parziale: alcune elaborazioni non sono state completate."}
-        {analysis.data.llm_enrichment && <Box component="span" sx={{ display: "block" }}>
-          {analysis.data.llm_enrichment.status === "FAILED"
-            ? "AI non disponibile."
-            : `AI: ${analysis.data.llm_enrichment.enriched ?? 0} segnali aggiornati su ${analysis.data.llm_enrichment.selected ?? 0} selezionati; ${analysis.data.llm_enrichment.failed ?? 0} non elaborati.`}
-        </Box>}
       </Alert>}
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }}>

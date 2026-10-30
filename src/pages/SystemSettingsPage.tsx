@@ -17,7 +17,6 @@ import {
   CircularProgress,
   FormControlLabel,
   IconButton,
-  Snackbar,
   Stack,
   Switch,
   Table,
@@ -39,6 +38,7 @@ import {
   type SchedulerJobRun,
   type SchedulerRunLog,
 } from "../services/systemAdmin";
+import { notifyOperation, notifyOperationError } from "../services/operationFeedback";
 
 const TERMINAL_STATUSES = new Set([
   "SUCCESS",
@@ -114,7 +114,6 @@ export default function SystemSettingsPage() {
   const [runningJobKey, setRunningJobKey] = useState<string | null>(null);
   const [loadingRunsKey, setLoadingRunsKey] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const [followLogs, setFollowLogs] = useState(true);
   const logViewportRef = useRef<HTMLDivElement>(null);
   const selectedRun = selectedJobKey
@@ -240,7 +239,7 @@ export default function SystemSettingsPage() {
     const recentRuns = await loadRuns(jobKey);
     const latest = recentRuns.find(run => run.status.toUpperCase() === "RUNNING") ?? recentRuns[0];
     if (latest) openRunLogs(latest.job_run_id, jobKey);
-    else setMessage("Nessuna esecuzione disponibile per questo job.");
+    else notifyOperation("Nessuna esecuzione disponibile per questo job.");
   }
 
   function closeRunLogs() {
@@ -253,12 +252,11 @@ export default function SystemSettingsPage() {
   async function toggleJob(job: SchedulerJob) {
     try {
       setError("");
-      setMessage("");
       setUpdatingJobKey(job.job_key);
       await updateSchedulerJob(job.job_key, { enabled: !job.enabled });
       await loadJobs();
     } catch (requestError) {
-      setError(
+      notifyOperationError(requestError,
         requestError instanceof Error
           ? requestError.message
           : "Impossibile aggiornare il job.",
@@ -271,13 +269,11 @@ export default function SystemSettingsPage() {
   async function runJob(job: SchedulerJob) {
     try {
       setError("");
-      setMessage("");
       setRunningJobKey(job.job_key);
       const request = await runSchedulerJob(job.job_key);
-      setMessage(`Esecuzione manuale richiesta per ${job.job_name}.`);
       openRunLogs(request.job_run_id, job.job_key);
     } catch (requestError) {
-      setError(
+      notifyOperationError(requestError,
         requestError instanceof Error
           ? requestError.message
           : "Impossibile avviare il job.",
@@ -309,28 +305,14 @@ export default function SystemSettingsPage() {
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      <Snackbar
-        key={message}
-        open={Boolean(message)}
-        autoHideDuration={3000}
-        disableWindowBlurListener
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-        onClose={(_, reason) => {
-          if (reason !== "clickaway") setMessage("");
-        }}
-      >
-        <Alert severity="success" variant="filled" onClose={() => setMessage("")} sx={{ width: "100%" }}>
-          {message}
-        </Alert>
-      </Snackbar>
 
         <Box sx={{ mb: 2, flexShrink: 0, borderBottom: 1, borderColor: "divider" }}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1, flexWrap: "wrap" }}>
-              <Box sx={{ flex: 1, minWidth: 120 }}>
-                <Typography variant="h6">{selectedJobKey ?? "Log esecuzione"}</Typography>
-                {selectedRunId && <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
-                  {selectedRunId} · {formatTimestamp(selectedRun?.started_at ?? null)}
-                </Typography>}
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1, flexWrap: "nowrap" }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="h6" noWrap>{selectedJobKey ?? "Log esecuzione"}</Typography>
+                <Typography variant="caption" component="div" color="text.secondary" noWrap sx={{ height: 20 }}>
+                  {selectedRunId ? `${selectedRunId} · ${formatTimestamp(selectedRun?.started_at ?? null)}` : "\u00a0"}
+                </Typography>
               </Box>
               {selectedRun && <Chip size="small" label={selectedRun.status} color={statusColor(selectedRun.status)} />}
               <FormControlLabel control={<Switch checked={followLogs} onChange={(_, checked) => setFollowLogs(checked)} />} label="Live" />

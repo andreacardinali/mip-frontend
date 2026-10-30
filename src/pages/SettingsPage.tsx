@@ -35,6 +35,7 @@ import CurrencySelect from "../components/CurrencySelect";
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import { useAuth } from "../contexts/AuthProvider";
 import { updateAccountPreferences } from "../services/auth";
+import { notifyOperationError } from "../services/operationFeedback";
 import {
   createNotificationSource,
   deleteNotificationSource,
@@ -77,7 +78,6 @@ export default function SettingsPage() {
   const [editingSource, setEditingSource] = useState<NotificationSource | null>(null);
   const [sourceForm, setSourceForm] =
     useState<NotificationSourcePayload>(emptySource);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const savedReportingCurrency = user?.reporting_currency ?? "EUR";
@@ -134,7 +134,6 @@ export default function SettingsPage() {
           : preference,
       ),
     );
-    setMessage(null);
     setError(null);
   }
 
@@ -160,7 +159,6 @@ export default function SettingsPage() {
 
   async function handleSaveAccount() {
     setIsSavingAccount(true);
-    setMessage(null);
     setError(null);
     try {
       await updateAccountPreferences(reportingCurrency);
@@ -170,10 +168,9 @@ export default function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: ["portfolio-summary"] }),
       ]);
       setReportingCurrencyOverride(null);
-      setMessage("Preferenze account salvate.");
     } catch (saveError) {
       console.error(saveError);
-      setError("Impossibile salvare le preferenze account.");
+      notifyOperationError(saveError, "Impossibile salvare le preferenze account.");
     } finally {
       setIsSavingAccount(false);
     }
@@ -181,7 +178,6 @@ export default function SettingsPage() {
 
   async function handleSaveSource() {
     setBusySourceId(editingSource?.source_id ?? "new");
-    setMessage(null);
     setError(null);
     try {
       const payload = { ...sourceForm };
@@ -192,10 +188,9 @@ export default function SettingsPage() {
       }
       await reloadNotifications();
       setSourceDialogOpen(false);
-      setMessage("Destinazione salvata.");
     } catch (saveError) {
       console.error(saveError);
-      setError("Impossibile salvare la destinazione.");
+      notifyOperationError(saveError, "Impossibile salvare la destinazione.");
     } finally {
       setBusySourceId(null);
     }
@@ -203,14 +198,12 @@ export default function SettingsPage() {
 
   async function handleTestSource(sourceId: string) {
     setBusySourceId(sourceId);
-    setMessage(null);
     setError(null);
     try {
       await testNotificationSource(sourceId);
-      setMessage("Messaggio di prova inviato correttamente.");
     } catch (testError) {
       console.error(testError);
-      setError("Invio di prova non riuscito. Verifica token e destinazione.");
+      notifyOperationError(testError, "Invio di prova non riuscito. Verifica token e destinazione.");
     } finally {
       setBusySourceId(null);
     }
@@ -218,15 +211,13 @@ export default function SettingsPage() {
 
   async function handleDeleteSource(sourceId: string) {
     setBusySourceId(sourceId);
-    setMessage(null);
     setError(null);
     try {
       await deleteNotificationSource(sourceId);
       await reloadNotifications();
-      setMessage("Destinazione eliminata.");
     } catch (deleteError) {
       console.error(deleteError);
-      setError("La destinazione è usata da una preferenza attiva o non può essere eliminata.");
+      notifyOperationError(deleteError, "La destinazione è usata da una preferenza attiva o non può essere eliminata.");
     } finally {
       setBusySourceId(null);
     }
@@ -234,7 +225,6 @@ export default function SettingsPage() {
 
   async function handleSaveNotifications() {
     setIsSavingNotifications(true);
-    setMessage(null);
     setError(null);
     try {
       const response = await updateNotificationPreferences(
@@ -249,10 +239,9 @@ export default function SettingsPage() {
       setSavedPreferences(response.preferences);
       setSources(response.sources);
       setChannels(response.supported_channels);
-      setMessage("Preferenze di notifica salvate.");
     } catch (saveError) {
       console.error(saveError);
-      setError("Impossibile salvare le preferenze di notifica.");
+      notifyOperationError(saveError, "Impossibile salvare le preferenze di notifica.");
     } finally {
       setIsSavingNotifications(false);
     }
@@ -265,7 +254,6 @@ export default function SettingsPage() {
         Gestisci il profilo, la valuta principale e le notifiche.
       </Typography>
       <Stack spacing={3}>
-        {message && <Alert severity="success">{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
 
         <AlertRuleSettings />

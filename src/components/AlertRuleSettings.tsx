@@ -18,6 +18,7 @@ import { useAuth } from "../contexts/AuthProvider";
 import { deleteAlertRule, getAlertEvents, getAlertRules, saveAlertRule, setAlertRuleEnabled } from "../services/alerts";
 import { getWatchlists } from "../services/watchlists";
 import { getPortfolios } from "../services/portfolios";
+import { notifyOperationError } from "../services/operationFeedback";
 import InstrumentAlertOverrides from "./InstrumentAlertOverrides";
 import type { AlertConditions, AlertRule, AlertRulePayload } from "../services/alerts";
 
@@ -100,10 +101,8 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
   const [form, setForm] = useState<AlertRulePayload>(emptyRule);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [deletingRule, setDeletingRule] = useState<AlertRule | null>(null);
   const [historyRule, setHistoryRule] = useState<AlertRule | null>(null);
   const [historyOffset, setHistoryOffset] = useState(0);
@@ -143,7 +142,6 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
     } : defaults);
     setEditingId(rule?.rule_id);
     setError(null);
-    setSaved(false);
     setOpen(true);
   }
 
@@ -177,7 +175,6 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
     try {
       await saveAlertRule(form, editingId);
       setOpen(false);
-      setSaved(true);
       await queryClient.invalidateQueries({ queryKey });
     } catch (saveError) {
       const detail = isAxiosError(saveError) ? saveError.response?.data?.detail : null;
@@ -190,18 +187,15 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
   async function toggleRule(rule: AlertRule, enabled: boolean) {
     setActionBusy(true);
     setActionError(null);
-    setActionMessage(null);
-    setSaved(false);
     try {
       await setAlertRuleEnabled(rule.rule_id, enabled);
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData<AlertRule[]>(queryKey, previous => previous?.map(item =>
         item.rule_id === rule.rule_id ? { ...item, enabled } : item));
-      setActionMessage(enabled ? "Regola attivata." : "Regola disattivata.");
       await queryClient.invalidateQueries({ queryKey });
     } catch (actionFailure) {
       const detail = isAxiosError(actionFailure) ? actionFailure.response?.data?.detail : null;
-      setActionError(typeof detail === "string" ? detail : "Impossibile aggiornare lo stato della regola.");
+      notifyOperationError(actionFailure, typeof detail === "string" ? detail : "Impossibile aggiornare lo stato della regola.");
     } finally {
       setActionBusy(false);
     }
@@ -211,8 +205,6 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
     if (!deletingRule) return;
     setActionBusy(true);
     setActionError(null);
-    setActionMessage(null);
-    setSaved(false);
     try {
       await deleteAlertRule(deletingRule.rule_id);
       await queryClient.cancelQueries({ queryKey });
@@ -221,7 +213,6 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
       queryClient.removeQueries({ queryKey: ["alert-events", user?.user_id, deletingRule.rule_id] });
       if (historyRule?.rule_id === deletingRule.rule_id) setHistoryRule(null);
       setDeletingRule(null);
-      setActionMessage("Regola eliminata.");
       await queryClient.invalidateQueries({ queryKey });
     } catch (actionFailure) {
       const detail = isAxiosError(actionFailure) ? actionFailure.response?.data?.detail : null;
@@ -239,9 +230,6 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
           Nuova regola
         </Button>
       </Stack>
-      {saved && <Alert severity="success" sx={{ mb: 2 }}>Regola salvata.</Alert>}
-      {actionMessage && <Alert severity="success" sx={{ mb: 2 }}>{actionMessage}</Alert>}
-      {actionError && !deletingRule && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
       {rules.isPending && <CircularProgress size={24} aria-label="Caricamento regole" />}
       {rules.isError && (
         <Alert severity="error" action={
@@ -276,8 +264,6 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
             <Tooltip title="Elimina regola"><span>
               <IconButton disabled={actionBusy || rules.isFetching} aria-label={`Elimina ${rule.name}`} onClick={() => {
                 setActionError(null);
-                setActionMessage(null);
-                setSaved(false);
                 setDeletingRule(rule);
               }}><DeleteIcon /></IconButton>
             </span></Tooltip>

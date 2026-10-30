@@ -10,6 +10,7 @@ import {
 
 import { login }
   from "../services/auth";
+import { notifyOperation } from "../services/operationFeedback";
 
 export default function LoginPage() {
 
@@ -47,9 +48,7 @@ export default function LoginPage() {
       window.location.href = "/";
     } catch {
 
-      alert(
-        "Invalid credentials"
-      );
+      notifyOperation("Accesso non riuscito. Verifica le credenziali.", "error");
 
     }
 

@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 
 import App from "./App";
+import OperationFeedback from "./components/OperationFeedback";
 import { ThemeModeProvider } from "./contexts/ThemeModeProvider";
 
 
@@ -27,6 +28,7 @@ createRoot(
     <QueryClientProvider client={queryClient}>
       <ThemeModeProvider>
         <AuthProvider>
+          <OperationFeedback />
           <PriceRefreshProvider>
             <App />
           </PriceRefreshProvider>
