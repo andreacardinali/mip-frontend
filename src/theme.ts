@@ -1,17 +1,17 @@
 import { createTheme } from "@mui/material";
 
-export const theme = createTheme({
+export const createAppTheme = (mode: "light" | "dark") => createTheme({
   palette: {
-    mode: "light",
-    primary: { main: "#006b64", contrastText: "#ffffff" },
-    secondary: { main: "#a52b53" },
-    background: { default: "#f3f6f7", paper: "#ffffff" },
-    text: { primary: "#17252b", secondary: "#52646d" },
-    divider: "#d5dfe3",
-    error: { main: "#b42335" },
-    warning: { main: "#955600" },
-    success: { main: "#187448" },
-    info: { main: "#176b98" },
+    mode,
+    primary: { main: mode === "dark" ? "#65d5c7" : "#006b64", contrastText: mode === "dark" ? "#102420" : "#ffffff" },
+    secondary: { main: mode === "dark" ? "#f391b3" : "#a52b53" },
+    background: { default: mode === "dark" ? "#15191b" : "#f3f6f7", paper: mode === "dark" ? "#202629" : "#ffffff" },
+    text: { primary: mode === "dark" ? "#edf3f4" : "#17252b", secondary: mode === "dark" ? "#afbec3" : "#52646d" },
+    divider: mode === "dark" ? "#405054" : "#d5dfe3",
+    error: { main: mode === "dark" ? "#ff8d9a" : "#b42335" },
+    warning: { main: mode === "dark" ? "#f3c262" : "#955600" },
+    success: { main: mode === "dark" ? "#78d5a0" : "#187448" },
+    info: { main: mode === "dark" ? "#80c5f2" : "#176b98" },
   },
   typography: {
     fontFamily: '"Segoe UI", sans-serif',
@@ -27,9 +27,24 @@ export const theme = createTheme({
     MuiPaper: { defaultProps: { elevation: 0 } },
     MuiButton: { defaultProps: { disableElevation: true } },
     MuiTextField: { defaultProps: { size: "small" } },
-    MuiTableCell: { styleOverrides: { head: { fontWeight: 650, backgroundColor: "#edf2f4" } } },
-    MuiAppBar: { styleOverrides: { root: { backgroundColor: "#ffffff", color: "#17252b", boxShadow: "none", borderBottom: "1px solid #d5dfe3" } } },
+    MuiTableCell: { styleOverrides: { head: ({ theme }) => ({ fontWeight: 650, backgroundColor: theme.palette.action.hover }) } },
+    MuiAppBar: { styleOverrides: { root: ({ theme }) => ({ backgroundColor: theme.palette.background.paper, color: theme.palette.text.primary, boxShadow: "none", borderBottom: `1px solid ${theme.palette.divider}` }) } },
     MuiTooltip: { styleOverrides: { tooltip: { backgroundColor: "#263b44", color: "#ffffff" } } },
-    MuiCssBaseline: { styleOverrides: { body: { colorScheme: "light" }, "pre, code": { color: "#17252b", backgroundColor: "#edf2f4" }, "a": { color: "#006b64" } } },
+    MuiCssBaseline: { styleOverrides: (theme) => ({
+      "html:root": {
+        "--text": theme.palette.text.secondary,
+        "--text-h": theme.palette.text.primary,
+        "--bg": theme.palette.background.default,
+        "--border": theme.palette.divider,
+        "--code-bg": theme.palette.action.hover,
+        "--accent": theme.palette.primary.main,
+        colorScheme: mode,
+        color: theme.palette.text.primary,
+        backgroundColor: theme.palette.background.default,
+      },
+      body: { colorScheme: mode },
+      "pre, code": { color: theme.palette.text.primary, backgroundColor: theme.palette.action.hover },
+      "a": { color: theme.palette.primary.main },
+    }) },
   },
 });

@@ -2,6 +2,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import TerminalIcon from "@mui/icons-material/Terminal";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Accordion,
@@ -113,6 +114,17 @@ export default function SystemSettingsPage() {
   const [loadingRunsKey, setLoadingRunsKey] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [followLogs, setFollowLogs] = useState(true);
+  const logViewportRef = useRef<HTMLDivElement>(null);
+  const selectedRun = selectedJobKey
+    ? runs[selectedJobKey]?.find(run => run.job_run_id === selectedRunId)
+    : undefined;
+
+  useEffect(() => {
+    if (followLogs && logViewportRef.current) {
+      logViewportRef.current.scrollTop = logViewportRef.current.scrollHeight;
+    }
+  }, [followLogs, runLogs]);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -161,8 +173,11 @@ export default function SystemSettingsPage() {
     if (!selectedRunId) return;
 
     let cancelled = false;
+    let refreshing = false;
 
     const refreshSelectedRun = async () => {
+      if (refreshing) return;
+      refreshing = true;
       try {
         const entries = await listSchedulerRunLogs(
           selectedRunId,
@@ -194,6 +209,8 @@ export default function SystemSettingsPage() {
               : "Impossibile aggiornare il run.",
           );
         }
+      } finally {
+        refreshing = false;
       }
     };
 
@@ -210,10 +227,19 @@ export default function SystemSettingsPage() {
   }, [loadJobs, loadRuns, selectedJobKey, selectedRunId]);
 
   function openRunLogs(jobRunId: string, jobKey: string) {
+    if (selectedRunId === jobRunId) return;
     lastLogIdRef.current = 0;
     setRunLogs([]);
     setSelectedJobKey(jobKey);
     setSelectedRunId(jobRunId);
+  }
+
+  async function openLatestRun(jobKey: string) {
+    setError("");
+    const recentRuns = await loadRuns(jobKey);
+    const latest = recentRuns.find(run => run.status.toUpperCase() === "RUNNING") ?? recentRuns[0];
+    if (latest) openRunLogs(latest.job_run_id, jobKey);
+    else setMessage("Nessuna esecuzione disponibile per questo job.");
   }
 
   function closeRunLogs() {
@@ -261,7 +287,7 @@ export default function SystemSettingsPage() {
   }
 
   return (
-    <Box>
+    <Box sx={{ height: "calc(100svh - 112px)", minHeight: 360, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
@@ -270,9 +296,6 @@ export default function SystemSettingsPage() {
         <Box sx={{ flex: 1 }}>
           <Typography variant="h4" gutterBottom>
             Impostazioni di sistema
-          </Typography>
-          <Typography color="text.secondary">
-            Gestione centralizzata dei job, run recenti e log live.
           </Typography>
         </Box>
         <Button
@@ -287,16 +310,20 @@ export default function SystemSettingsPage() {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {message && <Alert severity="success" sx={{ mb: 2 }}>{message}</Alert>}
 
-      {selectedRunId && (
-        <Card sx={{ mb: 2, bgcolor: "grey.900", color: "grey.100" }}>
-          <CardContent>
-            <Stack direction="row" spacing={2} sx={{ alignItems: "center", mb: 1 }}>
-              <Typography variant="h6" sx={{ flex: 1 }}>
-                Log live del run
-              </Typography>
+        <Box sx={{ mb: 2, flexShrink: 0, borderBottom: 1, borderColor: "divider" }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1, flexWrap: "wrap" }}>
+              <Box sx={{ flex: 1, minWidth: 120 }}>
+                <Typography variant="h6">{selectedJobKey ?? "Log esecuzione"}</Typography>
+                {selectedRunId && <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
+                  {selectedRunId} · {formatTimestamp(selectedRun?.started_at ?? null)}
+                </Typography>}
+              </Box>
+              {selectedRun && <Chip size="small" label={selectedRun.status} color={statusColor(selectedRun.status)} />}
+              <FormControlLabel control={<Switch checked={followLogs} onChange={(_, checked) => setFollowLogs(checked)} />} label="Live" />
               <IconButton
                 color="inherit"
                 aria-label="Chiudi log live"
+                disabled={!selectedRunId}
                 onClick={closeRunLogs}
               >
                 <CloseIcon />
@@ -304,10 +331,14 @@ export default function SystemSettingsPage() {
             </Stack>
             <Box
               component="div"
+              ref={logViewportRef}
               sx={{
                 m: 0,
                 p: 2,
-                maxHeight: 420,
+                height: "clamp(100px, 25svh, 280px)",
+                boxSizing: "border-box",
+                bgcolor: "background.paper",
+                color: "text.primary",
                 overflow: "auto",
                 textAlign: "left",
                 fontFamily: "monospace",
@@ -333,13 +364,12 @@ export default function SystemSettingsPage() {
                   </Box>
                 ))
               ) : (
-                "In attesa dei log..."
+                selectedRunId ? "Nessun log disponibile." : "Nessuna esecuzione selezionata."
               )}
             </Box>
-          </CardContent>
-        </Card>
-      )}
+        </Box>
 
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", pr: 1 }}>
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
           <CircularProgress />
@@ -374,6 +404,12 @@ export default function SystemSettingsPage() {
                     {job.last_error && <Alert severity="error" sx={{ mt: 1 }}>{job.last_error}</Alert>}
                   </Box>
                   <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={loadingRunsKey === job.job_key ? <CircularProgress size={18} /> : <TerminalIcon />}
+                      disabled={loadingRunsKey !== null}
+                      onClick={() => void openLatestRun(job.job_key)}
+                    >{job.last_status === "RUNNING" ? "Run attivo" : "Ultimo run"}</Button>
                     <Button
                       variant="contained"
                       startIcon={runningJobKey === job.job_key ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
@@ -442,6 +478,7 @@ export default function SystemSettingsPage() {
           ))}
         </Stack>
       )}
+      </Box>
     </Box>
   );
 }

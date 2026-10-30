@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { AppBar, Box, Drawer, FormControlLabel, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Switch, Toolbar, Tooltip, Typography } from "@mui/material";
 import { DashboardOutlined, BusinessOutlined, PublicOutlined, BookmarkBorder, AccountBalanceWalletOutlined, NewspaperOutlined, BoltOutlined, InsightsOutlined, SettingsOutlined, AdminPanelSettingsOutlined, Menu, Logout } from "@mui/icons-material";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthProvider";
 import { usePriceRefresh } from "../contexts/PriceRefreshProvider";
+import { ThemeModeContext } from "../contexts/ThemeModeContext";
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuth();
   const { enabled, setEnabled, intervalMs } = usePriceRefresh();
+  const { mode, setMode } = useContext(ThemeModeContext);
   const menu = [
     { label: "Panoramica", path: "/", icon: <DashboardOutlined /> },
     { label: "Entita", path: "/entities", icon: <BusinessOutlined /> },
@@ -50,6 +52,7 @@ export default function Layout() {
           <Toolbar sx={{ gap: 1, flexWrap: "wrap", py: 0.5 }}>
             <IconButton aria-label="Apri navigazione" onClick={() => setMobileOpen(true)} sx={{ display: { md: "none" } }}><Menu /></IconButton>
             <Typography variant="h6" sx={{ flex: 1 }}>{active?.label ?? "MIP"}</Typography>
+            <FormControlLabel control={<Switch checked={mode === "dark"} onChange={(_, checked) => setMode(checked ? "dark" : "light")} slotProps={{ input: { "aria-label": "Tema scuro" } }} />} label="Dark" sx={{ mr: 0 }} />
             <Tooltip title={enabled ? `Aggiornamento ogni ${intervalMs / 1000} secondi` : "Aggiornamento automatico disattivato"}>
               <FormControlLabel control={<Switch checked={enabled} onChange={(_, checked) => setEnabled(checked)} slotProps={{ input: { "aria-label": "Aggiornamento automatico prezzi" } }} />} label="Prezzi live" sx={{ mr: 0, "& .MuiFormControlLabel-label": { fontSize: 13 } }} />
             </Tooltip>

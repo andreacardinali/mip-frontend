@@ -118,6 +118,7 @@ export default function ScreenerPage() {
   const [verdict, setVerdict] = useState("");
   const [consensusDirection, setConsensusDirection] = useState<ConsensusDirection | "">("");
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
+  const [watchlistFilter, setWatchlistFilter] = useState("ALL");
   const [minimumScore, setMinimumScore] = useState("0");
   const query = searchParams.get("query") ?? "";
   const setQuery = (value: string) => setSearchParams(previous => {
@@ -180,10 +181,11 @@ export default function ScreenerPage() {
             ? false
             : undefined,
       minimum_score: Number(minimumScore) || 0,
+      watchlist_match: watchlistFilter === "YES" ? true : watchlistFilter === "NO" ? false : undefined,
       query: query.trim() || undefined,
       limit: 500,
     }),
-    [origin, direction, verdict, consensusDirection, strategy, selectedContext, portfolioFilter, minimumScore, query],
+    [origin, direction, verdict, consensusDirection, strategy, selectedContext, portfolioFilter, watchlistFilter, minimumScore, query],
   );
 
   const opportunitiesQuery = useQuery({
@@ -714,6 +716,12 @@ export default function ScreenerPage() {
             <MenuItem value="YES">Solo in portafoglio</MenuItem>
             <MenuItem value="NO">Escludi portafoglio</MenuItem>
           </TextField>
+          <TextField select size="small" label="Entita in watchlist" value={watchlistFilter}
+            sx={{ minWidth: 180 }} onChange={event => setWatchlistFilter(event.target.value)}>
+            <MenuItem value="ALL">Tutte</MenuItem>
+            <MenuItem value="YES">Solo in watchlist</MenuItem>
+            <MenuItem value="NO">Escludi watchlist</MenuItem>
+          </TextField>
           <TextField
             size="small"
             type="number"
@@ -787,7 +795,7 @@ export default function ScreenerPage() {
           onRowClick={(params) => { setDetailTab("overview"); setSelectedId(params.row.opportunity_id); }}
           initialState={{
             columns: { columnVisibilityModel: {
-              entity_name: false, direction: false, origin: false, portfolio_match_type: false,
+              entity_name: true, direction: false, origin: false, portfolio_match_type: false,
               attention_score: false, technical_score: false, quant_score: false,
             } },
             pagination: { paginationModel: { pageSize: 25, page: 0 } },
