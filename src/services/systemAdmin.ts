@@ -50,6 +50,17 @@ export interface SchedulerJobUpdate {
   interval_minutes?: number | null;
 }
 
+export type ScreenerPhase = "discovery_refresh" | "candidate_resolver" | "analysis_scan" | "llm_enrichment" | "ranking";
+
+export interface SchedulerRunParameters {
+  phases?: ScreenerPhase[];
+  stop_on_error?: boolean;
+  mode?: "MISSING" | "ALL" | "SYMBOL";
+  symbol?: string;
+  create_if_missing?: boolean;
+  full_refresh?: boolean;
+}
+
 export async function listSchedulerJobs(): Promise<SchedulerJob[]> {
   return (await api.get<SchedulerJob[]>("/admin/system/scheduler/jobs")).data;
 }
@@ -74,10 +85,12 @@ export async function updateSchedulerJob(
 
 export async function runSchedulerJob(
   jobKey: string,
+  payload?: SchedulerRunParameters,
 ): Promise<ManualRunRequest> {
   return (
     await api.post<ManualRunRequest>(
       `/admin/system/scheduler/jobs/${jobKey}/run`,
+      payload,
     )
   ).data;
 }

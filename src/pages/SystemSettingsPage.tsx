@@ -15,7 +15,12 @@ import {
   Card,
   CardContent,
   Chip,
+  Checkbox,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControlLabel,
   IconButton,
   MenuItem,
@@ -42,6 +47,8 @@ import {
   type SchedulerJob,
   type SchedulerJobRun,
   type SchedulerRunLog,
+  type SchedulerRunParameters,
+  type ScreenerPhase,
 } from "../services/systemAdmin";
 import { notifyOperation, notifyOperationError } from "../services/operationFeedback";
 import { formatLogTimestamp, formatTimestamp } from "../services/timestamps";
@@ -176,7 +183,84 @@ function CronEditor({ job, onSaved }: { job: SchedulerJob; onSaved: () => Promis
   </Box>;
 }
 
+const SCREENER_PHASES: { value: ScreenerPhase; label: string }[] = [
+  { value: "discovery_refresh", label: "Discovery" },
+  { value: "candidate_resolver", label: "Risoluzione candidati" },
+  { value: "analysis_scan", label: "Analisi quantitativa" },
+  { value: "llm_enrichment", label: "Arricchimento AI" },
+  { value: "ranking", label: "Ranking" },
+];
+
+function JobRunDialog({ job, busy, onClose, onRun }: {
+  job: SchedulerJob;
+  busy: boolean;
+  onClose: () => void;
+  onRun: (parameters: SchedulerRunParameters) => Promise<void>;
+}) {
+  const screener = job.job_key === "market_screener_pipeline";
+  const [phases, setPhases] = useState<ScreenerPhase[]>(SCREENER_PHASES.map(phase => phase.value));
+  const [stopOnError, setStopOnError] = useState("default");
+  const [mode, setMode] = useState<"MISSING" | "ALL" | "SYMBOL">("MISSING");
+  const [symbol, setSymbol] = useState("");
+  const [fullRefresh, setFullRefresh] = useState(false);
+  const [createIfMissing, setCreateIfMissing] = useState(false);
+  const valid = screener ? phases.length > 0 : mode !== "SYMBOL" || symbol.trim().length > 0;
+
+  function parameters(): SchedulerRunParameters {
+    if (screener) return {
+      phases,
+      ...(stopOnError === "default" ? {} : { stop_on_error: stopOnError === "stop" }),
+    };
+    return { mode, full_refresh: fullRefresh,
+      ...(mode === "SYMBOL" ? { symbol: symbol.trim().toUpperCase(), create_if_missing: createIfMissing } : {}),
+    };
+  }
+
+  return <Dialog open onClose={busy ? undefined : onClose} fullWidth maxWidth="sm">
+    <DialogTitle>{job.job_name}</DialogTitle>
+    <DialogContent>
+      <Stack spacing={2} sx={{ pt: 1 }}>
+        {screener ? <>
+          <Stack>
+            {SCREENER_PHASES.map(phase => <FormControlLabel key={phase.value} label={phase.label}
+              control={<Checkbox checked={phases.includes(phase.value)} disabled={busy}
+                onChange={(_, checked) => setPhases(current => checked
+                  ? [...current, phase.value] : current.filter(value => value !== phase.value))} />} />)}
+          </Stack>
+          <TextField select label="In caso di errore" value={stopOnError} disabled={busy}
+            onChange={event => setStopOnError(event.target.value)}>
+            <MenuItem value="default">Da configurazione</MenuItem>
+            <MenuItem value="stop">Interrompi</MenuItem>
+            <MenuItem value="continue">Prosegui</MenuItem>
+          </TextField>
+        </> : <>
+          <TextField select label="Modalità" value={mode} disabled={busy}
+            onChange={event => setMode(event.target.value as typeof mode)}>
+            <MenuItem value="MISSING">Dati mancanti</MenuItem>
+            <MenuItem value="ALL">Tutte le entità</MenuItem>
+            <MenuItem value="SYMBOL">Singolo simbolo</MenuItem>
+          </TextField>
+          {mode === "SYMBOL" && <>
+            <TextField label="Simbolo" value={symbol} disabled={busy} required
+              onChange={event => setSymbol(event.target.value)} />
+            <FormControlLabel label="Crea se assente" control={<Switch checked={createIfMissing}
+              disabled={busy} onChange={(_, checked) => setCreateIfMissing(checked)} />} />
+          </>}
+          <FormControlLabel label="Refresh completo" control={<Switch checked={fullRefresh}
+            disabled={busy} onChange={(_, checked) => setFullRefresh(checked)} />} />
+        </>}
+      </Stack>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={onClose} disabled={busy}>Annulla</Button>
+      <Button variant="contained" disabled={busy || !valid} onClick={() => void onRun(parameters())}
+        startIcon={busy ? <CircularProgress size={18} /> : <PlayArrowIcon />}>Esegui</Button>
+    </DialogActions>
+  </Dialog>;
+}
+
 export default function SystemSettingsPage() {
+  const [parameterJob, setParameterJob] = useState<SchedulerJob | null>(null);
   const [jobs, setJobs] = useState<SchedulerJob[]>([]);
   const [jobSort, setJobSort] = useState<JobSort>("name");
   const [jobStatusFilter, setJobStatusFilter] = useState<JobStatusFilter>("all");
@@ -348,11 +432,12 @@ export default function SystemSettingsPage() {
     }
   }
 
-  async function runJob(job: SchedulerJob) {
+  async function runJob(job: SchedulerJob, parameters?: SchedulerRunParameters) {
     try {
       setError("");
       setRunningJobKey(job.job_key);
-      const request = await runSchedulerJob(job.job_key);
+      const request = await runSchedulerJob(job.job_key, parameters);
+      setParameterJob(null);
       openRunLogs(request.job_run_id, job.job_key);
     } catch (requestError) {
       notifyOperationError(requestError,
@@ -522,7 +607,10 @@ export default function SystemSettingsPage() {
                       variant="contained"
                       startIcon={runningJobKey === job.job_key ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
                       disabled={runningJobKey !== null}
-                      onClick={() => void runJob(job)}
+                      onClick={() => {
+                        if (["market_screener_pipeline", "refresh_entities_missing"].includes(job.job_key)) setParameterJob(job);
+                        else void runJob(job);
+                      }}
                     >
                       Esegui ora
                     </Button>}
@@ -587,6 +675,9 @@ export default function SystemSettingsPage() {
         </Stack>
       )}
       </Box>
+      {parameterJob && <JobRunDialog key={parameterJob.job_key} job={parameterJob}
+        busy={runningJobKey !== null} onClose={() => setParameterJob(null)}
+        onRun={parameters => runJob(parameterJob, parameters)} />}
     </Box>
   );
 }
