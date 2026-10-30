@@ -18,6 +18,7 @@ import {
   CircularProgress,
   FormControlLabel,
   IconButton,
+  MenuItem,
   Stack,
   Switch,
   Table,
@@ -51,6 +52,30 @@ const TERMINAL_STATUSES = new Set([
   "PARTIAL",
   "INCOMPLETE",
 ]);
+
+type JobSort = "name" | "last_run_at" | "next_run_at";
+type JobStatusFilter = "all" | "SUCCESS" | "FAILED";
+
+function getVisibleJobs(jobs: SchedulerJob[], sort: JobSort, status: JobStatusFilter) {
+  const timestamp = (job: SchedulerJob) => {
+    const value = sort === "last_run_at" ? job.last_run_at
+      : job.enabled && !job.request_only ? job.next_run_at : null;
+    const parsed = value ? Date.parse(value) : NaN;
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  return jobs.filter(job => status === "all" || job.last_status?.toUpperCase() === status)
+    .sort((first, second) => {
+      const byName = first.job_name.localeCompare(second.job_name, "it", { numeric: true, sensitivity: "base" })
+        || first.job_key.localeCompare(second.job_key);
+      if (sort === "name") return byName;
+      const firstTime = timestamp(first);
+      const secondTime = timestamp(second);
+      if (firstTime === null) return secondTime === null ? byName : 1;
+      if (secondTime === null) return -1;
+      return (sort === "last_run_at" ? secondTime - firstTime : firstTime - secondTime) || byName;
+    });
+}
 
 function formatDuration(value: number | string | null) {
   if (value == null) return "—";
@@ -153,6 +178,8 @@ function CronEditor({ job, onSaved }: { job: SchedulerJob; onSaved: () => Promis
 
 export default function SystemSettingsPage() {
   const [jobs, setJobs] = useState<SchedulerJob[]>([]);
+  const [jobSort, setJobSort] = useState<JobSort>("name");
+  const [jobStatusFilter, setJobStatusFilter] = useState<JobStatusFilter>("all");
   const [runs, setRuns] = useState<Record<string, SchedulerJobRun[]>>({});
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedJobKey, setSelectedJobKey] = useState<string | null>(null);
@@ -168,6 +195,7 @@ export default function SystemSettingsPage() {
   const selectedRun = selectedJobKey
     ? runs[selectedJobKey]?.find(run => run.job_run_id === selectedRunId)
     : undefined;
+  const visibleJobs = getVisibleJobs(jobs, jobSort, jobStatusFilter);
 
   useEffect(() => {
     if (followLogs && logViewportRef.current) {
@@ -419,14 +447,46 @@ export default function SystemSettingsPage() {
             </Box>
         </Box>
 
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} useFlexGap sx={{ mb: 2, flexShrink: 0, flexWrap: "wrap", alignItems: { sm: "center" } }}>
+        <TextField
+          select
+          size="small"
+          label="Ordina per"
+          value={jobSort}
+          onChange={event => setJobSort(event.target.value as JobSort)}
+          sx={{ width: { xs: "100%", sm: 300 } }}
+        >
+          <MenuItem value="name">Nome (A-Z)</MenuItem>
+          <MenuItem value="last_run_at">Ultima esecuzione (recenti)</MenuItem>
+          <MenuItem value="next_run_at">Prossima esecuzione (imminenti)</MenuItem>
+        </TextField>
+        <TextField
+          select
+          size="small"
+          label="Esito ultima esecuzione"
+          value={jobStatusFilter}
+          onChange={event => setJobStatusFilter(event.target.value as JobStatusFilter)}
+          sx={{ width: { xs: "100%", sm: 230 } }}
+        >
+          <MenuItem value="all">Tutti</MenuItem>
+          <MenuItem value="SUCCESS">Riusciti</MenuItem>
+          <MenuItem value="FAILED">Falliti</MenuItem>
+        </TextField>
+        {!loading && <Typography variant="body2" color="text.secondary">{visibleJobs.length} / {jobs.length} job</Typography>}
+      </Stack>
+
       <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", pr: 1 }}>
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
           <CircularProgress />
         </Box>
+      ) : visibleJobs.length === 0 ? (
+        <Typography color="text.secondary" sx={{ p: 2 }}>
+          {jobs.length === 0 ? "Nessun job disponibile." : "Nessun job corrisponde al filtro."}
+        </Typography>
       ) : (
         <Stack spacing={2}>
-          {jobs.map((job) => (
+          {visibleJobs.map((job) => (
             <Card key={job.job_id}>
               <CardContent>
                 <Stack
