@@ -1,9 +1,31 @@
 import api from "../api/api";
 import type {
+  CollectionType,
+  IntelligenceCategory,
+  MonitoringCollectionsResponse,
   NotificationPreferencesResponse,
   NotificationSourcePayload,
   UpdateNotificationPreference,
 } from "../types/notifications";
+
+export async function getMonitoringCollections() {
+  const response = await api.get<MonitoringCollectionsResponse>(
+    "/notification-preferences/collections",
+  );
+  return response.data;
+}
+
+export async function updateCollectionIntelligence(
+  collectionType: CollectionType,
+  collectionId: string,
+  enabledCategories: IntelligenceCategory[],
+) {
+  const response = await api.put<{ saved: boolean }>(
+    `/notification-preferences/collections/${collectionType}/${collectionId}`,
+    { enabled_categories: enabledCategories },
+  );
+  return response.data;
+}
 
 export async function getNotificationPreferences() {
   const response = await api.get<NotificationPreferencesResponse>(

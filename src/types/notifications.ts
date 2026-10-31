@@ -8,6 +8,24 @@ export type NotificationType =
   | "SIGNAL_CHANGE"
   | "SCREENER_SUMMARY";
 
+export type CollectionType = "PORTFOLIO" | "WATCHLIST" | "UNIVERSE";
+export type IntelligenceCategory =
+  | "DAILY_MOVER"
+  | "UPCOMING_CATALYST"
+  | "BREAKING_CATALYST"
+  | "NEWS";
+
+export type MonitoringCollection = {
+  collection_type: CollectionType;
+  collection_id: string;
+  collection_name: string;
+  enabled_categories: IntelligenceCategory[];
+};
+
+export type MonitoringCollectionsResponse = {
+  collections: MonitoringCollection[];
+};
+
 export type NotificationPreference = {
   notification_type: NotificationType;
   label: string;

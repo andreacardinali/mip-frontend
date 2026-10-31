@@ -1,5 +1,22 @@
 # React + TypeScript + Vite
 
+## Collection Intelligence Subscriptions
+
+Market alerts includes a Collection tab listing accessible portfolios, watchlists
+and universes. Each collection has independent Daily Mover, Upcoming Catalyst,
+Breaking Catalyst and News selections, saved per row. Saving no categories
+unsubscribes the collection. These subscriptions are separate from delivery
+channels and global notification preferences; they do not control acquisition
+or shared research. Failed saves retain the pending selections for retry.
+Leaving the Collection tab discards unsaved selections.
+
+The frontend uses authenticated GET and PUT requests under
+`/notification-preferences/collections`. The backend requires manual installation
+of `oneshot/install_collection_intelligence.sql`; the frontend does not install
+database changes. Exposure information is not inferred from the News/Catalyst
+asset-match payloads. Replay and exposure-proportional severity remain deferred.
+API contract tests run with `node --test tests/notifications.test.mjs`.
+
 ## Timestamp Display And Job Schedules
 
 Displayed timestamps use a shared Italian relative-time formatter for distances
