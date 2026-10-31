@@ -81,3 +81,140 @@ test("listing and saving failures propagate instead of reporting success", async
   await assert.rejects(api.updateNotificationDelivery({ paused: true, default_source_id: null }), error);
   await assert.rejects(api.updateCollectionIntelligence("PORTFOLIO", "missing-id", []), error);
 });
+
+const collectionComponent = ts.transpileModule(
+  readFileSync(new URL("../src/components/CollectionIntelligenceSettings.tsx", import.meta.url), "utf8"),
+  { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+  } },
+).outputText;
+
+function collectionSettings(saveCollection = async () => {}) {
+  let data = { collections: ["PORTFOLIO", "WATCHLIST", "UNIVERSE"].map(collection_type => ({
+    collection_type, collection_id: "shared-id", collection_name: collection_type, enabled_categories: [],
+  })) };
+  let drafts = {};
+  let mutation;
+  let pending = false;
+  let failed = false;
+  let completion;
+  const requests = [];
+  const exports = {};
+  const element = (type, props, key) => ({ type, props, key });
+  const queryClient = {
+    cancelQueries: async () => {},
+    setQueryData: (key, update) => {
+      assert.deepEqual(Array.from(key), ["monitoring-collections", "owner"]);
+      data = update(data);
+    },
+  };
+  runInNewContext(collectionComponent, {
+    exports,
+    require: name => {
+      if (name === "react/jsx-runtime") return { jsx: element, jsxs: element };
+      if (name === "react") return { useState: () => [drafts, update => {
+        drafts = typeof update === "function" ? update(drafts) : update;
+      }] };
+      if (name === "@mui/material") return Object.fromEntries([
+        "Alert", "Box", "Button", "Checkbox", "CircularProgress", "FormControlLabel", "Stack", "Typography",
+      ].map(component => [component, component]));
+      if (name.startsWith("@mui/icons-material/")) return { __esModule: true, default: name };
+      if (name === "../contexts/AuthProvider") return { useAuth: () => ({ user: { user_id: "owner" } }) };
+      if (name === "../services/operationFeedback") return { notifyOperationError: () => {} };
+      if (name === "../services/notifications") return {
+        getMonitoringCollections: async () => data,
+        updateCollectionIntelligence: async (...args) => {
+          requests.push(JSON.parse(JSON.stringify(args)));
+          await saveCollection(...args);
+        },
+      };
+      assert.equal(name, "@tanstack/react-query");
+      return {
+        useQueryClient: () => queryClient,
+        useQuery: () => ({ data, isSuccess: true }),
+        useMutation: options => {
+          mutation = options;
+          return { isPending: pending, isError: failed, reset: () => { failed = false; },
+            mutate: changed => {
+              pending = true;
+              failed = false;
+              completion = mutation.mutationFn(changed).catch(error => {
+                failed = true;
+                mutation.onError(error);
+              }).finally(() => { pending = false; });
+            },
+          };
+        },
+      };
+    },
+  });
+  function render() {
+    const elements = [];
+    function visit(node) {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (!node || typeof node !== "object") return;
+      if (typeof node.type === "function") return visit(node.type(node.props));
+      elements.push(node);
+      visit(node.props?.children);
+      visit(node.props?.control);
+    }
+    visit(exports.default());
+    return elements;
+  }
+  return {
+    render, requests, complete: () => completion,
+    button: () => render().find(node => node.type === "Button"),
+    checkbox: (collection, category = 0) => render().filter(node => node.type === "Checkbox")[collection * 4 + category],
+    data: () => data,
+  };
+}
+
+test("collections have one save button enabled only by effective changes", () => {
+  const settings = collectionSettings();
+  assert.equal(settings.render().filter(node => node.type === "Button").length, 1);
+  assert.equal(settings.button().props.disabled, true);
+  for (let collection = 0; collection < 3; collection++) {
+    settings.checkbox(collection).props.onChange(null, true);
+    assert.equal(settings.button().props.disabled, false);
+    assert.equal(settings.checkbox(collection).props.checked, true);
+    settings.checkbox(collection).props.onChange(null, false);
+    assert.equal(settings.button().props.disabled, true);
+  }
+});
+
+test("one save persists all changed collections and leaves unchanged collections alone", async () => {
+  const settings = collectionSettings();
+  settings.checkbox(0).props.onChange(null, true);
+  settings.checkbox(1, 3).props.onChange(null, true);
+  settings.button().props.onClick();
+  assert.equal(settings.button().props.disabled, true);
+  assert.ok(settings.render().filter(node => node.type === "Checkbox").every(node => node.props.disabled));
+  await settings.complete();
+  assert.deepEqual(settings.requests, [
+    ["PORTFOLIO", "shared-id", ["DAILY_MOVER"]], ["WATCHLIST", "shared-id", ["NEWS"]],
+  ]);
+  assert.equal(settings.button().props.disabled, true);
+  assert.equal(settings.checkbox(0).props.checked, true);
+  assert.equal(settings.checkbox(1, 3).props.checked, true);
+});
+
+test("partial failures retain unsaved drafts and retry only remaining collections", async () => {
+  let fail = true;
+  const settings = collectionSettings(async collectionType => {
+    if (collectionType === "WATCHLIST" && fail) throw new Error("Save failed");
+  });
+  for (let collection = 0; collection < 3; collection++) settings.checkbox(collection).props.onChange(null, true);
+  settings.button().props.onClick();
+  await settings.complete();
+  assert.equal(settings.button().props.disabled, false);
+  assert.ok(settings.render().some(node => node.type === "Alert" && node.props.severity === "error"));
+  assert.ok(settings.data().collections[0].enabled_categories.includes("DAILY_MOVER"));
+  assert.equal(settings.data().collections[1].enabled_categories.length, 0);
+  for (let collection = 0; collection < 3; collection++) assert.equal(settings.checkbox(collection).props.checked, true);
+  fail = false;
+  settings.button().props.onClick();
+  await settings.complete();
+  assert.deepEqual(settings.requests.map(request => request[0]), ["PORTFOLIO", "WATCHLIST", "WATCHLIST", "UNIVERSE"]);
+  assert.equal(settings.button().props.disabled, true);
+  assert.ok(!settings.render().some(node => node.type === "Alert"));
+});

@@ -23,31 +23,12 @@ const collectionLabels = {
   PORTFOLIO: "Portafoglio", WATCHLIST: "Watchlist", UNIVERSE: "Universo",
 };
 
-function CollectionRow({ collection, userId }: {
-  collection: MonitoringCollection; userId: string;
+function CollectionRow({ collection, selected, disabled, onChange }: {
+  collection: MonitoringCollection;
+  selected: IntelligenceCategory[];
+  disabled: boolean;
+  onChange: (selected: IntelligenceCategory[]) => void;
 }) {
-  const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<IntelligenceCategory[] | null>(null);
-  const selected = draft ?? collection.enabled_categories;
-  const changed = [...selected].sort().join(",") !==
-    [...collection.enabled_categories].sort().join(",");
-  const save = useMutation({
-    mutationFn: (enabledCategories: IntelligenceCategory[]) => updateCollectionIntelligence(
-      collection.collection_type, collection.collection_id, enabledCategories,
-    ),
-    onSuccess: (_, enabledCategories) => {
-      queryClient.setQueryData<MonitoringCollectionsResponse>(
-        ["monitoring-collections", userId],
-        current => current && ({ collections: current.collections.map(row =>
-          row.collection_type === collection.collection_type && row.collection_id === collection.collection_id
-            ? { ...row, enabled_categories: enabledCategories } : row,
-        ) }),
-      );
-      setDraft(null);
-    },
-    onError: error => notifyOperationError(error, "Impossibile salvare la sottoscrizione."),
-  });
-
   return (
     <Stack component="section" spacing={1.5} aria-label={`${collectionLabels[collection.collection_type]}: ${collection.collection_name}`}
       sx={{ py: 2, borderBottom: 1, borderColor: "divider" }}>
@@ -56,34 +37,66 @@ function CollectionRow({ collection, userId }: {
           <Typography sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{collection.collection_name}</Typography>
           <Typography variant="body2" color="text.secondary">{collectionLabels[collection.collection_type]}</Typography>
         </Box>
-        <Button startIcon={save.isPending ? <CircularProgress size={18} /> : <SaveIcon />}
-          disabled={!changed || save.isPending} onClick={() => save.mutate([...selected])}
-          sx={{ flexShrink: 0 }}>Salva</Button>
       </Stack>
       <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", columnGap: 2 }}>
         {categories.map(category => (
           <FormControlLabel key={category.value} label={category.label}
-            control={<Checkbox checked={selected.includes(category.value)} disabled={save.isPending}
-              onChange={(_, checked) => setDraft(checked
+            control={<Checkbox checked={selected.includes(category.value)} disabled={disabled}
+              onChange={(_, checked) => onChange(checked
                 ? [...selected, category.value]
                 : selected.filter(value => value !== category.value))} />} />
         ))}
       </Stack>
-      {save.isError && <Alert severity="error">Sottoscrizione non salvata.</Alert>}
     </Stack>
   );
 }
 
-export default function CollectionIntelligenceSettings() {
-  const { user } = useAuth();
+function CollectionSettings({ userId }: { userId?: string }) {
+  const queryClient = useQueryClient();
+  const queryKey = ["monitoring-collections", userId];
+  const [drafts, setDrafts] = useState<Record<string, IntelligenceCategory[]>>({});
   const collections = useQuery({
-    queryKey: ["monitoring-collections", user?.user_id],
+    queryKey,
     queryFn: getMonitoringCollections,
-    enabled: !!user,
+    enabled: !!userId,
+  });
+  const changedCollections = (collections.data?.collections ?? []).flatMap(collection => {
+    const selected = drafts[`${collection.collection_type}:${collection.collection_id}`];
+    return selected && (selected.length !== collection.enabled_categories.length ||
+      selected.some(category => !collection.enabled_categories.includes(category)))
+      ? [{ ...collection, enabled_categories: selected }] : [];
+  });
+  const save = useMutation({
+    mutationFn: async (changed: MonitoringCollection[]) => {
+      await queryClient.cancelQueries({ queryKey });
+      for (const collection of changed) {
+        await updateCollectionIntelligence(
+          collection.collection_type, collection.collection_id, collection.enabled_categories,
+        );
+        queryClient.setQueryData<MonitoringCollectionsResponse>(queryKey,
+          current => current && ({ collections: current.collections.map(row =>
+            row.collection_type === collection.collection_type && row.collection_id === collection.collection_id
+              ? { ...row, enabled_categories: collection.enabled_categories } : row,
+          ) }),
+        );
+        setDrafts(current => {
+          const remaining = { ...current };
+          delete remaining[`${collection.collection_type}:${collection.collection_id}`];
+          return remaining;
+        });
+      }
+    },
+    onError: error => notifyOperationError(error, "Impossibile salvare tutte le sottoscrizioni."),
   });
   return (
     <Box sx={{ maxWidth: 1000, mx: "auto" }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>Sottoscrizioni</Typography>
+      <Stack direction="row" spacing={2} sx={{ mb: 1, alignItems: "center", justifyContent: "space-between" }}>
+        <Typography variant="h6">Sottoscrizioni</Typography>
+        <Button startIcon={save.isPending ? <CircularProgress size={18} /> : <SaveIcon />}
+          disabled={!changedCollections.length || save.isPending || !collections.isSuccess || !userId}
+          onClick={() => save.mutate(changedCollections)} sx={{ flexShrink: 0 }}>Salva</Button>
+      </Stack>
+      {save.isError && <Alert severity="error">Alcune modifiche non sono state salvate.</Alert>}
       {collections.isLoading && <CircularProgress size={24} aria-label="Caricamento collection" />}
       {collections.isError && <Alert severity="error" action={
         <Button color="inherit" startIcon={<RefreshIcon />} disabled={collections.isFetching}
@@ -91,10 +104,20 @@ export default function CollectionIntelligenceSettings() {
       }>Impossibile caricare le collection.</Alert>}
       {collections.isSuccess && collections.data.collections.length === 0 &&
         <Alert severity="info">Nessuna collection disponibile.</Alert>}
-      {user && collections.data?.collections.map(collection => (
-        <CollectionRow key={`${user.user_id}:${collection.collection_type}:${collection.collection_id}`}
-          collection={collection} userId={user.user_id} />
-      ))}
+      {userId && collections.data?.collections.map(collection => {
+        const key = `${collection.collection_type}:${collection.collection_id}`;
+        return <CollectionRow key={key} collection={collection}
+          selected={drafts[key] ?? collection.enabled_categories} disabled={save.isPending}
+          onChange={selected => {
+            save.reset();
+            setDrafts(current => ({ ...current, [key]: selected }));
+          }} />;
+      })}
     </Box>
   );
+}
+
+export default function CollectionIntelligenceSettings() {
+  const { user } = useAuth();
+  return <CollectionSettings key={user?.user_id ?? "anonymous"} userId={user?.user_id} />;
 }
