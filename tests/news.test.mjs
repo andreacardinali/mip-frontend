@@ -63,7 +63,12 @@ function newsPage(rows, selected = null) {
     .props.onChange({ target: { value: "ALL" } });
   const nodes = render();
   const grid = nodes.find(node => node.type === "DataGrid");
+  const rowIds = new Set();
   for (const row of grid.props.rows) {
+    const rowId = grid.props.getRowId(row);
+    assert.ok(rowId != null, "DataGrid row IDs must not be null or undefined");
+    assert.ok(!rowIds.has(rowId), "DataGrid row IDs must be unique");
+    rowIds.add(rowId);
     for (const column of grid.props.columns) {
       column.valueGetter?.(undefined, row);
       column.renderCell?.({ row });
@@ -84,6 +89,19 @@ test("switching to ALL renders global news without symbol associations", () => {
   assert.equal(grid.props.rows.length, 1);
   const symbols = grid.props.columns.find(column => column.field === "symbols");
   assert.equal(symbols.valueGetter(undefined, globalNews), "");
+});
+
+test("ALL keeps news with null or missing IDs using unique view-only identities", () => {
+  const missingId = { ...globalNews };
+  delete missingId.news_id;
+  const input = [globalNews, { ...globalNews, news_id: null },
+    { ...globalNews, news_id: null }, missingId];
+  const { grid } = newsPage(input);
+  assert.equal(grid.props.rows.length, input.length);
+  assert.deepEqual(Array.from(grid.props.rows, row => row.news_id),
+    input.map(row => row.news_id));
+  assert.equal(new Set(grid.props.rows.map(grid.props.getRowId)).size, input.length);
+  assert.equal(input[1].gridRowId, undefined);
 });
 
 test("nullable asset matches and missing portfolio arrays cannot crash grid or details", () => {
