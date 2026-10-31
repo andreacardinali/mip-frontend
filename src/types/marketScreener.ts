@@ -70,7 +70,7 @@ export type ScreenerContextType = "WATCHLIST" | "PORTFOLIO" | "UNIVERSE" | "ENTI
 export interface ScreenerContext { context_type:ScreenerContextType; context_id:string; name:string; instrument_count:number; }
 export interface ScreenerAnalysisResult { status:"SUCCESS"|"PARTIAL"|"FAILED"; run_id:string; ranking_snapshot_id:string; scan:Record<string,unknown>; ranking:Record<string,unknown>; llm_enrichment?: { status:"SUCCESS"|"PARTIAL"|"FAILED"; selected?:number; enriched?:number; failed?:number; reason?:string }; }
 export interface ScreenerFilters { origin?:string; direction?:string; verdict?:string; portfolio_match?:boolean; watchlist_match?:boolean; consensus_direction?:ConsensusDirection; strategy_code?:string; context_type?:ScreenerContextType; context_id?:string; minimum_score?:number; query?:string; limit?:number; }
-export interface ScreenerRun { screener_run_id:string; status:"RUNNING"|"SUCCESS"|"PARTIAL"|"FAILED"; discovery_snapshot_id:string|null; scan_run_id:string|null; started_at:string; completed_at:string|null; phase_results:Record<string,unknown>; error_message:string|null; ranking_snapshot_id:string|null; opportunity_count:number; }
+export interface ScreenerRun { screener_run_id:string; job_run_id?:string|null; job_key?:string|null; status:"RUNNING"|"SUCCESS"|"PARTIAL"|"FAILED"; discovery_snapshot_id:string|null; scan_run_id:string|null; started_at:string; completed_at:string|null; phase_results:Record<string,unknown>; error_message:string|null; ranking_snapshot_id:string|null; opportunity_count:number; }
 export interface ScreenerAnalysisProgress {
 	screener_run_id: string | null;
 	job_run_id?: string;
