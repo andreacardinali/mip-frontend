@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -15,7 +15,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   FormControl,
   FormControlLabel,
   IconButton,
@@ -29,10 +28,9 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import CurrencySelect from "../components/CurrencySelect";
-import { getAlertRules } from "../services/alerts";
 import { useAuth } from "../contexts/AuthProvider";
 import { updateAccountPreferences } from "../services/auth";
 import { notifyOperationError } from "../services/operationFeedback";
@@ -41,11 +39,11 @@ import {
   deleteNotificationSource,
   getNotificationPreferences,
   testNotificationSource,
-  updateNotificationPreferences,
+  updateNotificationDelivery,
   updateNotificationSource,
 } from "../services/notifications";
 import type {
-  NotificationPreference,
+  NotificationDeliveryPreferences,
   NotificationSource,
   NotificationSourcePayload,
   SupportedNotificationChannel,
@@ -64,18 +62,14 @@ const emptySource: NotificationSourcePayload = {
 export default function SettingsPage({ view = "account" }: { view?: "account" | "delivery" } = {}) {
   const queryClient = useQueryClient();
   const { user, refreshUser } = useAuth();
-  const rules = useQuery({
-    queryKey: ["alert-rules", user?.user_id], queryFn: getAlertRules,
-    enabled: view === "delivery" && !!user,
-  });
   const [reportingCurrencyOverride, setReportingCurrencyOverride] =
     useState<string | null>(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
   const [busySourceId, setBusySourceId] = useState<string | null>(null);
-  const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
-  const [savedPreferences, setSavedPreferences] = useState<NotificationPreference[]>([]);
+  const [delivery, setDelivery] = useState<NotificationDeliveryPreferences>({ paused: false, default_source_id: null });
+  const [savedDelivery, setSavedDelivery] = useState(delivery);
   const [sources, setSources] = useState<NotificationSource[]>([]);
   const [channels, setChannels] = useState<SupportedNotificationChannel[]>([]);
   const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
@@ -89,10 +83,11 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
 
   async function reloadNotifications() {
     const response = await getNotificationPreferences();
-    setPreferences(response.preferences);
-    setSavedPreferences(response.preferences);
+    setDelivery(response.delivery);
+    setSavedDelivery(response.delivery);
     setSources(response.sources);
     setChannels(response.supported_channels);
+    queryClient.setQueryData(["notification-preferences", user?.user_id], response);
   }
 
   useEffect(() => {
@@ -101,8 +96,8 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
     void getNotificationPreferences()
       .then((response) => {
         if (!active) return;
-        setPreferences(response.preferences);
-        setSavedPreferences(response.preferences);
+        setDelivery(response.delivery);
+        setSavedDelivery(response.delivery);
         setSources(response.sources);
         setChannels(response.supported_channels);
       })
@@ -118,29 +113,14 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
     };
   }, [view]);
 
-  const notificationsChanged = useMemo(
-    () => JSON.stringify(preferences) !== JSON.stringify(savedPreferences),
-    [preferences, savedPreferences],
-  );
+  const notificationsChanged = delivery.paused !== savedDelivery.paused
+    || delivery.default_source_id !== savedDelivery.default_source_id;
   const accountChanged = reportingCurrency !== savedReportingCurrency;
   const enabledSources = sources.filter((source) => source.enabled);
   const selectedChannel = channels.find(
     (channel) => channel.channel === sourceForm.source_type,
   );
 
-  function patchPreference(
-    notificationType: NotificationPreference["notification_type"],
-    patch: Partial<NotificationPreference>,
-  ) {
-    setPreferences((current) =>
-      current.map((preference) =>
-        preference.notification_type === notificationType
-          ? { ...preference, ...patch }
-          : preference,
-      ),
-    );
-    setError(null);
-  }
 
   function openCreateSource() {
     setEditingSource(null);
@@ -222,7 +202,7 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
       await reloadNotifications();
     } catch (deleteError) {
       console.error(deleteError);
-      notifyOperationError(deleteError, "La destinazione è usata da una preferenza attiva o non può essere eliminata.");
+      notifyOperationError(deleteError, "La destinazione è predefinita, usata da una regola o non può essere eliminata.");
     } finally {
       setBusySourceId(null);
     }
@@ -232,18 +212,12 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
     setIsSavingNotifications(true);
     setError(null);
     try {
-      const response = await updateNotificationPreferences(
-        preferences.map((preference) => ({
-          notification_type: preference.notification_type,
-          enabled: preference.enabled,
-          source_id: preference.enabled ? preference.source_id : null,
-          severity_min: preference.severity_min,
-        })),
-      );
-      setPreferences(response.preferences);
-      setSavedPreferences(response.preferences);
+      const response = await updateNotificationDelivery(delivery);
+      setDelivery(response.delivery);
+      setSavedDelivery(response.delivery);
       setSources(response.sources);
       setChannels(response.supported_channels);
+      queryClient.setQueryData(["notification-preferences", user?.user_id], response);
     } catch (saveError) {
       console.error(saveError);
       notifyOperationError(saveError, "Impossibile salvare le preferenze di notifica.");
@@ -323,38 +297,28 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
 
         {view === "delivery" && <Box>
           <Stack spacing={2.5}>
-            <Typography variant="h6">Invio per tipo di evento</Typography>
-            {rules.isError && <Alert severity="error">Impossibile verificare le regole attive.</Alert>}
+            <Typography variant="h6">Invio notifiche</Typography>
             {isLoadingNotifications ? <CircularProgress /> : (
-              <Stack spacing={2} divider={<Divider flexItem />}>
-                {preferences.map((preference) => {
-                  const requiresRule = ["MARKET_SIGNAL", "FIXED_PRICE", "PERCENT_MOVE", "SIGNAL_CHANGE"].includes(preference.notification_type);
-                  const activeCount = rules.data?.filter(rule => rule.enabled && rule.alert_type === preference.notification_type).length ?? 0;
-                  const unavailable = requiresRule && (!rules.isSuccess || activeCount === 0);
-                  return (
-                  <Stack key={preference.notification_type} direction={{ xs: "column", md: "row" }} spacing={2} sx={{ alignItems: { xs: "stretch", md: "center" }, justifyContent: "space-between" }}>
-                    <Box sx={{ flex: 1 }}>
-                      <FormControlLabel
-                        control={<Switch checked={preference.enabled} disabled={isSavingNotifications || (unavailable && !preference.enabled)} onChange={(_, checked) => patchPreference(preference.notification_type, { enabled: checked, source_id: checked && !preference.source_id ? enabledSources[0]?.source_id ?? null : preference.source_id })} />}
-                        label={preference.label}
-                      />
-                      <Typography variant="body2" color="text.secondary" sx={{ ml: 6 }}>{preference.description}</Typography>
-                      {requiresRule && <Typography variant="body2" color={rules.isSuccess && activeCount === 0 ? "warning.main" : "text.secondary"} sx={{ ml: 6 }}>
-                        {rules.isSuccess ? activeCount ? `${activeCount} regole attive` : "Nessuna regola attiva: nessun evento da inviare." : "Verifica regole in corso"}
-                      </Typography>}
-                    </Box>
-                    <FormControl size="small" disabled={!preference.enabled} sx={{ minWidth: 280 }}>
-                      <InputLabel>Metodo e destinazione</InputLabel>
-                      <Select label="Metodo e destinazione" value={preference.source_id ?? ""} onChange={(event) => patchPreference(preference.notification_type, { source_id: event.target.value || null })}>
-                        {enabledSources.map((source) => <MenuItem key={source.source_id} value={source.source_id}>{source.source_name} ({source.channel})</MenuItem>)}
-                      </Select>
-                    </FormControl>
-                  </Stack>
-                ); })}
+              <Stack spacing={2}>
+                <FormControlLabel label="Pausa tutte le notifiche" control={
+                  <Switch checked={delivery.paused} disabled={isSavingNotifications}
+                    onChange={(_, paused) => setDelivery(current => ({ ...current, paused }))} />
+                } />
+                <FormControl fullWidth size="small" disabled={isSavingNotifications}>
+                  <InputLabel>Destinazione predefinita</InputLabel>
+                  <Select label="Destinazione predefinita" value={delivery.default_source_id ?? ""}
+                    onChange={event => setDelivery(current => ({ ...current, default_source_id: event.target.value || null }))}>
+                    <MenuItem value="">Nessuna destinazione</MenuItem>
+                    {delivery.default_source_id && !enabledSources.some(source => source.source_id === delivery.default_source_id) && (
+                      <MenuItem disabled value={delivery.default_source_id}>Destinazione non disponibile</MenuItem>
+                    )}
+                    {enabledSources.map(source => <MenuItem key={source.source_id} value={source.source_id}>{source.source_name} ({source.channel})</MenuItem>)}
+                  </Select>
+                </FormControl>
               </Stack>
             )}
             <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-              <Button variant="contained" startIcon={<SaveIcon />} disabled={!notificationsChanged || isSavingNotifications || preferences.some((item) => item.enabled && !item.source_id)} onClick={() => void handleSaveNotifications()}>
+              <Button variant="contained" startIcon={<SaveIcon />} disabled={!notificationsChanged || isSavingNotifications || isLoadingNotifications || !!error} onClick={() => void handleSaveNotifications()}>
                 Salva notifiche
               </Button>
             </Box>

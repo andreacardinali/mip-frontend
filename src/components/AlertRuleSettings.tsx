@@ -18,6 +18,7 @@ import { isAxiosError } from "axios";
 import { useAuth } from "../contexts/AuthProvider";
 import { deleteAlertRule, getAlertEvents, getAlertRules, saveAlertRule, setAlertRuleEnabled } from "../services/alerts";
 import { getWatchlists } from "../services/watchlists";
+import { getNotificationPreferences } from "../services/notifications";
 import { getPortfolios } from "../services/portfolios";
 import { getScreenerContextInstruments, getScreenerContexts, getScreenerOpportunities } from "../services/marketScreener";
 import { notifyOperationError } from "../services/operationFeedback";
@@ -41,8 +42,8 @@ const notificationStatuses: Record<string, string> = {
   SENT: "Inviata", FAILED: "Invio fallito",
 };
 const notificationSkipReasons: Record<string, string> = {
-  DISABLED: "Notifiche disabilitate",
-  PREFERENCE_DISABLED: "Disabilitata nelle preferenze",
+  DISABLED: "Invio sospeso",
+  PREFERENCE_DISABLED: "Preferenza precedente disabilitata",
   SOURCE_NOT_FOUND: "Nessuna destinazione disponibile",
   DUPLICATE: "Notifica duplicata",
 };
@@ -93,6 +94,11 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
     (context.scope === "SCREENER" || rule.conditions.scope_id === context.scopeId)
   ));
   const [open, setOpen] = useState(false);
+  const destinations = useQuery({
+    queryKey: ["notification-preferences", user?.user_id],
+    queryFn: getNotificationPreferences,
+    enabled: !!user && open,
+  });
   const [editingId, setEditingId] = useState<string>();
   const [form, setForm] = useState<AlertRulePayload>(emptyRule);
   const [busy, setBusy] = useState(false);
@@ -423,12 +429,22 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                   onChange={event => setForm({ ...form, severity: event.target.value as AlertRulePayload["severity"] })}>
                   {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}
                 </TextField>
-                <TextField select fullWidth label="Canale" value={form.channel ?? ""} disabled={busy}
-                  onChange={event => setForm({ ...form, channel: event.target.value === "TELEGRAM" ? "TELEGRAM" : null })}>
-                  <MenuItem value="">Preferenze di notifica</MenuItem>
-                  <MenuItem value="TELEGRAM">Telegram</MenuItem>
+                <TextField select fullWidth label="Destinazione" value={form.conditions.source_id ?? ""}
+                  disabled={busy || !destinations.isSuccess}
+                  onChange={event => setForm(previous => ({ ...previous, channel: null,
+                    conditions: { ...previous.conditions, source_id: event.target.value || undefined } }))}>
+                  <MenuItem value="">Destinazione predefinita</MenuItem>
+                  {form.conditions.source_id && !destinations.data?.sources.some(source => source.source_id === form.conditions.source_id && source.enabled) && (
+                    <MenuItem disabled value={form.conditions.source_id}>Destinazione non disponibile</MenuItem>
+                  )}
+                  {destinations.data?.sources.filter(source => source.enabled).map(source => (
+                    <MenuItem key={source.source_id} value={source.source_id}>{source.source_name} ({source.channel})</MenuItem>
+                  ))}
                 </TextField>
               </Stack>
+              {destinations.isError && <Alert severity="error" action={
+                <IconButton aria-label="Riprova destinazioni" onClick={() => void destinations.refetch()}><RefreshIcon /></IconButton>
+              }>Impossibile caricare le destinazioni.</Alert>}
               {instruments.isError && <Alert severity="error" action={
                 <IconButton aria-label="Riprova simboli" onClick={() => void instruments.refetch()}><RefreshIcon /></IconButton>
               }>Impossibile caricare i simboli dell'ambito selezionato.</Alert>}

@@ -54,6 +54,23 @@ test("saving targets the selected collection and sends exactly its categories", 
   }
 });
 
+test("delivery saves one default destination and the global pause", async () => {
+  for (const paused of [true, false]) {
+    for (const default_source_id of [null, "source-id"]) {
+      const delivery = { paused, default_source_id };
+      const result = { delivery };
+      const api = service({
+        put: async (path, payload) => {
+          assert.equal(path, "/notification-preferences/delivery");
+          assert.strictEqual(payload, delivery);
+          return { data: result };
+        },
+      });
+      assert.strictEqual(await api.updateNotificationDelivery(delivery), result);
+    }
+  }
+});
+
 test("listing and saving failures propagate instead of reporting success", async () => {
   const error = new Error("Collection not found");
   const api = service({
@@ -61,5 +78,6 @@ test("listing and saving failures propagate instead of reporting success", async
     put: async () => { throw error; },
   });
   await assert.rejects(api.getMonitoringCollections(), error);
+  await assert.rejects(api.updateNotificationDelivery({ paused: true, default_source_id: null }), error);
   await assert.rejects(api.updateCollectionIntelligence("PORTFOLIO", "missing-id", []), error);
 });

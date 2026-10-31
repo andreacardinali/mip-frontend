@@ -18,6 +18,7 @@ export interface InstrumentAlertOverride {
 }
 
 export interface AlertConditions {
+  source_id?: string;
   scope: MonitoringScope;
   scope_id?: string;
   max_age_minutes: number;

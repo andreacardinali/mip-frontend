@@ -3,6 +3,7 @@ import type {
   CollectionType,
   IntelligenceCategory,
   MonitoringCollectionsResponse,
+  NotificationDeliveryPreferences,
   NotificationPreferencesResponse,
   NotificationSourcePayload,
   UpdateNotificationPreference,
@@ -50,6 +51,13 @@ export async function createNotificationSource(
   const response = await api.post<{ source_id: string }>(
     "/notification-preferences/sources",
     payload,
+  );
+  return response.data;
+}
+
+export async function updateNotificationDelivery(delivery: NotificationDeliveryPreferences) {
+  const response = await api.put<NotificationPreferencesResponse>(
+    "/notification-preferences/delivery", delivery,
   );
   return response.data;
 }

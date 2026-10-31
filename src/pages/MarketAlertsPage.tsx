@@ -12,7 +12,7 @@ export default function MarketAlertsPage() {
       <Tabs value={tab} onChange={(_, value: string) => setTab(value)} aria-label="Alert di mercato" sx={{ mb: 3 }}>
         <Tab value="rules" label="Regole" id="market-alerts-rules-tab" aria-controls="market-alerts-rules" />
         <Tab value="collections" label="Collection" id="market-alerts-collections-tab" aria-controls="market-alerts-collections" />
-        <Tab value="delivery" label="Canali di invio" id="market-alerts-delivery-tab" aria-controls="market-alerts-delivery" />
+        <Tab value="delivery" label="Destinazioni" id="market-alerts-delivery-tab" aria-controls="market-alerts-delivery" />
       </Tabs>
       <Box hidden={tab !== "rules"} role="tabpanel" id="market-alerts-rules" aria-labelledby="market-alerts-rules-tab">
         <AlertRuleSettings />

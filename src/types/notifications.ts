@@ -53,9 +53,15 @@ export type SupportedNotificationChannel = {
 };
 
 export type NotificationPreferencesResponse = {
+  delivery: NotificationDeliveryPreferences;
   preferences: NotificationPreference[];
   sources: NotificationSource[];
   supported_channels: SupportedNotificationChannel[];
+};
+
+export type NotificationDeliveryPreferences = {
+  paused: boolean;
+  default_source_id: string | null;
 };
 
 export type UpdateNotificationPreference = Pick<
