@@ -7,6 +7,7 @@ import DashboardPage from "./pages/DashboardPage";
 import WatchlistsPage from "./pages/WatchlistsPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import NewsPage from "./pages/NewsPage";
+import NewsErrorBoundary from "./components/NewsErrorBoundary";
 import CatalystsPage from "./pages/CatalystsPage";
 import ScreenerPage from "./pages/ScreenerPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -32,7 +33,7 @@ export default function App() {
             <Route path="/universes/:id" element={<UniversesPage />} />
             <Route path="/watchlists" element={<WatchlistsPage />} />
             <Route path="/portfolios" element={<PortfolioPage />} />
-            <Route path="/news" element={<NewsPage />} />
+            <Route path="/news" element={<NewsErrorBoundary><NewsPage /></NewsErrorBoundary>} />
             <Route path="/catalysts" element={<CatalystsPage />} />
             <Route path="/screener" element={<ScreenerPage />} />
             <Route path="/settings" element={<SettingsPage />} />

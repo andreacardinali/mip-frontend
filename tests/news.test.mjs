@@ -107,3 +107,46 @@ test("valid news retain symbol and portfolio labels", () => {
   assert.equal(grid.props.columns.find(column => column.field === "symbols").valueGetter(undefined, row), "ABC");
   assert.match(grid.props.columns.find(column => column.field === "portfolio_match").valueGetter(undefined, row), /ABC/);
 });
+
+test("News error boundary exposes the actual error and can recover without losing navigation", () => {
+  const boundaryCode = ts.transpileModule(
+    readFileSync(new URL("../src/components/NewsErrorBoundary.tsx", import.meta.url), "utf8"),
+    { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+    } },
+  ).outputText;
+  const exports = {};
+  const logged = [];
+  const element = (type, props) => ({ type, props });
+  class Component {
+    constructor(props) { this.props = props; }
+    setState(update) { this.state = { ...this.state, ...update }; }
+  }
+  runInNewContext(boundaryCode, {
+    exports,
+    console: { error: (...args) => logged.push(args) },
+    require: name => {
+      if (name === "react") return { Component };
+      if (name === "react/jsx-runtime") return { jsx: element, jsxs: element };
+      if (name === "@mui/material") return Object.fromEntries(
+        ["Alert", "AlertTitle", "Box", "Button", "Typography"].map(component => [component, component]),
+      );
+      assert.equal(name, "@mui/icons-material/Refresh");
+      return { __esModule: true, default: "RefreshIcon" };
+    },
+  });
+  const Boundary = exports.default;
+  const page = element("NewsPage", {});
+  const boundary = new Boundary({ children: page });
+  assert.equal(boundary.render(), page);
+  const error = new Error("Actual grid rendering failure");
+  boundary.state = Boundary.getDerivedStateFromError(error);
+  boundary.componentDidCatch(error, { componentStack: "DataGrid > NewsPage" });
+  assert.equal(logged[0][1], error);
+  assert.equal(logged[0][2], "DataGrid > NewsPage");
+  const fallback = boundary.render();
+  const alert = fallback.props.children.find(node => node.type === "Alert");
+  assert.equal(alert.props.children[1].props.children, error.message);
+  fallback.props.children.find(node => node.type === "Button").props.onClick();
+  assert.equal(boundary.render(), page);
+});
