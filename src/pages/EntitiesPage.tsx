@@ -1,5 +1,5 @@
 import { useDeferredValue, useState } from "react";
-import { Link as RouterLink, useParams } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, LinearProgress, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
@@ -10,10 +10,13 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { getEntities, getEntityOverview } from "../services/entities";
 import { analyzeScreenerContext, screenerAnalysisMutationKey } from "../services/marketScreener";
 import type { EntityScope } from "../types/entity";
+import type { ScreenerOpportunity } from "../types/marketScreener";
 import { formatTimestamp as timestamp } from "../services/timestamps";
+import { screenerOpportunityColumns, screenerOpportunityInitialState } from "../components/screenerOpportunityColumns";
 
 export default function EntitiesPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const analysisPending = useIsMutating({ mutationKey: screenerAnalysisMutationKey }) > 0;
   const analysis = useMutation({
@@ -37,6 +40,9 @@ export default function EntitiesPage() {
   const overview = detail.data;
   const current = id ? detail : list;
   const rows = list.data ?? [];
+  const openOpportunity = (row: ScreenerOpportunity) => {
+    navigate(`/screener?context=ENTITY:${row.entity_id}&context_name=${encodeURIComponent(row.entity_name)}&opportunity=${encodeURIComponent(row.opportunity_id)}`);
+  };
   const watchlistMemberships = [...new Map((overview?.asset_match.watchlist_items ?? []).map(item => [item.watchlist_id, item])).values()];
   const instrumentRows = overview?.instruments.map(instrument => {
     const positions = overview.asset_match.portfolio_positions.filter(
@@ -132,16 +138,7 @@ export default function EntitiesPage() {
         {!overview.asset_match.in_portfolio && overview.universes.length === 0 && <Typography color="text.secondary">Nessun portafoglio o universo associato.</Typography>}
       </Stack>
       <Typography id="entity-signals" component="h2" variant="h6" sx={{ scrollMarginTop: 96 }}>Risultati analisi: segnali degli strumenti</Typography>
-      {overview.opportunities.length === 0 ? <Typography color="text.secondary">Nessun segnale attivo.</Typography> : <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.opportunities} getRowId={row => row.opportunity_id} disableRowSelectionOnClick columns={[
-        { field: "symbol", headerName: "Simbolo", width: 120 }, { field: "strategy_code", headerName: "Strategia", width: 160 },
-        { field: "direction", headerName: "Direzione", width: 115 },
-        { field: "technical_score", headerName: "Score tecnico", type: "number", width: 130 },
-        { field: "quant_score", headerName: "Score quantitativo", type: "number", width: 165 },
-        { field: "llm_score", headerName: "Score AI", type: "number", width: 110 },
-        { field: "composite_score", headerName: "Score totale", type: "number", width: 120 },
-        { field: "consensus_direction", headerName: "Consenso", width: 130 }, { field: "verdict", headerName: "Verdetto AI", width: 140 },
-        { field: "summary", headerName: "Sintesi AI", minWidth: 260, flex: 1 },
-      ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>}
+      {overview.opportunities.length === 0 ? <Typography color="text.secondary">Nessun segnale attivo.</Typography> : <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.opportunities} getRowId={row => row.opportunity_id} disableRowSelectionOnClick columns={screenerOpportunityColumns(openOpportunity)} onRowClick={({ row }) => openOpportunity(row)} initialState={screenerOpportunityInitialState} showToolbar slotProps={{ toolbar: { csvOptions: { fileName: "mip-entity-signals", utf8WithBom: true, escapeFormulas: true }, printOptions: { disableToolbarButton: true } } }} pageSizeOptions={[25, 50, 100]} /></Box>}
       {overview.opportunities.map(opportunity => <Accordion key={opportunity.opportunity_id}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`analysis-${opportunity.opportunity_id}`} id={`analysis-heading-${opportunity.opportunity_id}`}>
           <Typography sx={{ overflowWrap: "anywhere" }}>Analisi {opportunity.symbol} | {opportunity.strategy_code ?? "N/D"} | {opportunity.direction}</Typography>

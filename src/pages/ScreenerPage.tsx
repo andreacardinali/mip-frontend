@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatTimestamp } from "../services/timestamps";
-import { Link as RouterLink, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import HistoryIcon from "@mui/icons-material/History";
 import ShowChartIcon from "@mui/icons-material/ShowChart";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import FiberNewIcon from "@mui/icons-material/FiberNew";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -22,7 +21,6 @@ import {
   DialogTitle,
   IconButton,
   FormControlLabel,
-  Link,
   LinearProgress,
   MenuItem,
   Paper,
@@ -40,6 +38,7 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 import ScreenerRunLogDialog from "../components/ScreenerRunLogDialog";
+import { screenerOpportunityColumns, screenerOpportunityInitialState, score, matchLabel, matchColor, directionColor, originColor, verdictColor, verdictLabel, scoreColor } from "../components/screenerOpportunityColumns";
 
 import {
   analyzeScreenerContext,
@@ -57,66 +56,12 @@ import {
 } from "../services/marketScreener";
 import type {
   ConsensusDirection,
-  PortfolioMatchType,
   ScreenerContext,
   ScreenerRun,
-  ScreenerOpportunity,
   ScreenerSignalEvent,
   ScreenerSnapshotItem,
   ScreenerSnapshotChange,
 } from "../types/marketScreener";
-
-function score(value: number | null) {
-  return value === null ? "–" : Number(value).toFixed(1);
-}
-
-function matchLabel(matchType: PortfolioMatchType) {
-  return {
-    EXACT_INSTRUMENT: "Strumento posseduto",
-    SAME_ISIN: "Stesso ISIN",
-    SAME_ENTITY: "Stessa entità",
-    NO_MATCH: "Nessun match",
-  }[matchType];
-}
-
-function matchColor(matchType: PortfolioMatchType) {
-  if (matchType === "EXACT_INSTRUMENT") return "success" as const;
-  if (matchType === "SAME_ISIN") return "primary" as const;
-  if (matchType === "SAME_ENTITY") return "info" as const;
-  return "default" as const;
-}
-
-function directionColor(direction: string) {
-  if (direction === "LONG") return "success" as const;
-  if (direction === "SHORT") return "error" as const;
-  return "default" as const;
-}
-
-function originColor(origin: string) {
-  if (origin === "CORE") return "primary" as const;
-  if (origin === "DISCOVERY") return "secondary" as const;
-  return "default" as const;
-}
-
-function verdictColor(verdict: string | null) {
-  if (verdict === "CONFIRM") return "success" as const;
-  if (verdict === "REVIEW") return "warning" as const;
-  if (verdict === "REJECT") return "error" as const;
-  return "default" as const;
-}
-
-function verdictLabel(verdict: string | null) {
-  return verdict === "CONFIRM" ? "Confermato" : verdict === "REVIEW" ? "Da valutare"
-    : verdict === "REJECT" ? "Non confermato" : verdict ?? "Non disponibile";
-}
-
-function scoreColor(value: number | null) {
-  const numeric = value === null ? null : Number(value);
-  if (numeric === null || !Number.isFinite(numeric)) return "text.secondary";
-  if (numeric >= 70) return "success.main";
-  if (numeric >= 40) return "warning.main";
-  return "error.main";
-}
 
 export default function ScreenerPage() {
   const queryClient = useQueryClient();
@@ -146,7 +91,7 @@ export default function ScreenerPage() {
   const [strategy, setStrategy] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get("opportunity"));
   const [historyOpen, setHistoryOpen] = useState(false);
   const [logRun, setLogRun] = useState<ScreenerRun | null>(null);
   const [performanceOpen, setPerformanceOpen] = useState(false);
@@ -331,200 +276,10 @@ export default function ScreenerPage() {
   const rows = resultView === "ai" ? allRows.filter(row => row.llm_score !== null) : allRows;
   const portfolioCount = rows.filter((row) => row.portfolio_match).length;
 
-  const columns: GridColDef<ScreenerOpportunity>[] = [
-    {
-      field: "detail", headerName: "", width: 55, sortable: false, filterable: false,
-      disableExport: true,
-      renderCell: ({ row }) => <Tooltip title={`Apri analisi di ${row.source_symbol}`}>
-        <IconButton aria-label={`Apri analisi di ${row.source_symbol}`} size="small"
-          onClick={event => { event.stopPropagation(); setDetailTab("overview"); setSelectedId(row.opportunity_id); }}>
-          <OpenInNewIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>,
-    },
-    { field: "ranking_position", headerName: "Classifica", hideable: false, disableExport: true },
-    {
-      field: "last_analysis_at", headerName: "Ultima analisi", width: 185, type: "dateTime",
-      valueGetter: value => value ? new Date(value) : null,
-      valueFormatter: (value: Date | null) => formatTimestamp(value),
-    },
-    {
-      field: "source_symbol",
-      headerName: "Simbolo",
-      width: 135,
-      renderCell: ({ row }) => (
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", height: "100%" }}>
-          <span>{row.source_symbol}</span>
-          {newEntries.has(`${row.source_instrument_id}:${row.signal_timeframe ?? ""}:${row.signal_id}`) && (
-            <Tooltip title="New entry nell'ultima scansione completa">
-              <FiberNewIcon color="success" fontSize="small" aria-label="New entry" />
-            </Tooltip>
-          )}
-        </Stack>
-      ),
-    },
-    {
-      field: "entity_name",
-      headerName: "Entità",
-      minWidth: 210,
-      flex: 1,
-      renderCell: ({ row }) => <Link component={RouterLink} to={`/entities/${row.entity_id}`} onClick={event => event.stopPropagation()}>{row.entity_name}</Link>,
-    },
-    {
-      field: "signal_type",
-      headerName: "Segnale",
-      minWidth: 165,
-      renderCell: ({ row }) => (
-        <Chip
-          size="small"
-          color={row.signal_type === "BUY" || row.signal_type === "STRONG_BUY" ? "success" : row.signal_type === "SELL" || row.signal_type === "STRONG_SELL" ? "error" : "default"}
-          label={`${row.signal_type ?? "N/D"} · ${row.strategy_code ?? "N/D"}`}
-        />
-      ),
-    },
-    {
-      field: "direction",
-      headerName: "Direzione",
-      width: 105,
-      renderCell: ({ row }) => (
-        <Chip
-          size="small"
-          color={directionColor(row.direction)}
-          label={row.direction}
-        />
-      ),
-    },
-    {
-      field: "origin",
-      headerName: "Origine",
-      width: 105,
-      renderCell: ({ row }) => (
-        <Chip
-          size="small"
-          color={originColor(row.origin)}
-          label={row.origin}
-        />
-      ),
-    },
-    {
-      field: "consensus_direction",
-      headerName: "Consenso",
-      width: 125,
-      renderCell: ({ row }) => (
-        <Chip size="small" color={row.consensus_direction === "LONG" ? "success" : row.consensus_direction === "SHORT" ? "error" : row.consensus_direction === "CONFLICT" ? "warning" : "default"} label={`${row.consensus_direction} · ${row.strategy_count}`} />
-      ),
-    },
-    {
-      field: "portfolio_match_type",
-      headerName: "Portafoglio",
-      minWidth: 190,
-      renderCell: ({ row }) =>
-        row.portfolio_match ? (
-          <Chip
-            size="small"
-            color={matchColor(row.portfolio_match_type)}
-            label={`${matchLabel(row.portfolio_match_type)} · ${row.portfolio_symbols.join(", ")}`}
-          />
-        ) : (
-          <Typography color="text.secondary">–</Typography>
-        ),
-    },
-    {
-      field: "attention_score",
-      headerName: "Attention",
-      width: 105,
-      renderCell: ({ row }) => (
-        <Typography
-          sx={{
-            color: scoreColor(row.attention_score),
-            fontWeight: 600,
-          }}
-        >
-          {score(row.attention_score)}
-        </Typography>
-      ),
-    },
-    {
-      field: "technical_score",
-      headerName: "Technical",
-      width: 105,
-      renderCell: ({ row }) => (
-        <Typography
-          sx={{
-            color: scoreColor(row.technical_score),
-            fontWeight: 600,
-          }}
-        >
-          {score(row.technical_score)}
-        </Typography>
-      ),
-    },
-    {
-      field: "quant_score",
-      headerName: "Quant",
-      width: 90,
-      renderCell: ({ row }) => (
-        <Typography
-          sx={{
-            color: scoreColor(row.quant_score),
-            fontWeight: 600,
-          }}
-        >
-          {score(row.quant_score)}
-        </Typography>
-      ),
-    },
-    {
-      field: "llm_score",
-      headerName: "Score AI",
-      width: 80,
-      renderCell: ({ row }) => (
-        <Typography
-          sx={{
-            color: scoreColor(row.llm_score),
-            fontWeight: 600,
-          }}
-        >
-          {score(row.llm_score)}
-        </Typography>
-      ),
-    },
-    {
-      field: "composite_score",
-      headerName: "Score totale",
-      width: 110,
-      renderCell: ({ row }) => (
-        <Typography
-          sx={{
-            color: scoreColor(row.composite_score),
-            fontWeight: 700,
-          }}
-        >
-          {score(row.composite_score)}
-        </Typography>
-      ),
-    },
-    {
-      field: "verdict",
-      headerName: "Valutazione",
-      width: 150,
-      renderCell: ({ row }) => (
-        <Chip
-          size="small"
-          color={verdictColor(row.verdict)}
-          label={verdictLabel(row.verdict)}
-        />
-      ),
-    },
-    {
-      field: "summary", headerName: "Sintesi AI", minWidth: 250, flex: 1,
-      renderCell: ({ row }) => <Tooltip title={row.summary ?? "Sintesi AI non disponibile"}>
-        <Typography variant="body2" noWrap sx={{ alignSelf: "center", minWidth: 0 }}>
-          {row.summary || (row.llm_score === null ? "Non analizzato con AI" : "Sintesi non disponibile")}
-        </Typography>
-      </Tooltip>,
-    },
-  ];
+  const columns = screenerOpportunityColumns(row => {
+    setDetailTab("overview");
+    setSelectedId(row.opportunity_id);
+  }, newEntries);
 
   const selected = detailQuery.data;
   const refreshing = opportunitiesQuery.isFetching || changesQuery.isFetching
@@ -854,17 +609,7 @@ export default function ScreenerPage() {
           loading={opportunitiesQuery.isPending}
           getRowId={(row) => row.opportunity_id}
           onRowClick={(params) => { setDetailTab("overview"); setSelectedId(params.row.opportunity_id); }}
-          initialState={{
-            columns: { columnVisibilityModel: {
-              ranking_position: false,
-              entity_name: true, direction: false, origin: false, portfolio_match_type: false,
-              attention_score: false, technical_score: false, quant_score: false,
-            } },
-            pagination: { paginationModel: { pageSize: 25, page: 0 } },
-            sorting: {
-              sortModel: [{ field: "ranking_position", sort: "asc" }],
-            },
-          }}
+          initialState={screenerOpportunityInitialState}
           pageSizeOptions={[25, 50, 100]}
           disableRowSelectionOnClick
         />

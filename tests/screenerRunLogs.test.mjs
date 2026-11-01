@@ -4,6 +4,21 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
+const opportunityColumnsExports = {};
+runInNewContext(ts.transpileModule(readFileSync(new URL("../src/components/screenerOpportunityColumns.tsx", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+}).outputText, {
+  exports: opportunityColumnsExports,
+  require: name => {
+    if (name === "react/jsx-runtime") return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
+    if (name === "react-router-dom") return { Link: "Link" };
+    if (name === "@mui/material") return Object.fromEntries(["Chip", "IconButton", "Link", "Stack", "Tooltip", "Typography"].map(component => [component, component]));
+    if (name.startsWith("@mui/icons-material/")) return { __esModule: true, default: name };
+    if (name === "../services/timestamps") return { formatTimestamp: value => value };
+    throw new Error(`Unexpected module: ${name}`);
+  },
+});
+
 const compiled = ts.transpileModule(readFileSync(new URL("../src/components/ScreenerRunLogDialog.tsx", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
@@ -152,6 +167,7 @@ function renderEntities(pending, overview) {
   const exports = {};
   const queries = [];
   const invalidations = [];
+  const navigations = [];
   let mutation;
   const element = (type, props) => ({ type, props });
   runInNewContext(entitiesCompiled, {
@@ -159,7 +175,8 @@ function renderEntities(pending, overview) {
     require: name => {
       if (name === "react/jsx-runtime") return { jsx: element, jsxs: element };
       if (name === "react") return { useState: initial => [initial, () => {}], useDeferredValue: value => value };
-      if (name === "react-router-dom") return { Link: "Link", useParams: () => ({ id: "entity" }) };
+      if (name === "react-router-dom") return { Link: "Link", useParams: () => ({ id: "entity" }), useNavigate: () => destination => navigations.push(destination) };
+      if (name === "../components/screenerOpportunityColumns") return opportunityColumnsExports;
       if (name === "@tanstack/react-query") return {
         useIsMutating: () => pending ? 1 : 0,
         useQueryClient: () => ({ invalidateQueries: async options => { invalidations.push(options); } }),
@@ -177,7 +194,7 @@ function renderEntities(pending, overview) {
     },
   });
   const tree = exports.default();
-  return { queries, mutation, invalidations, tree };
+  return { queries, mutation, invalidations, navigations, tree };
 }
 
 test("entity queries refresh while analysis is running and stop polling afterward", () => {
@@ -205,7 +222,10 @@ const entityOverview = {
   asset_match: { portfolio_positions: [], watchlist_names: [], watchlist_items: [] },
   instruments: [], universes: [], news: [], news_count: 0, catalysts: [], catalyst_count: 0,
   opportunities: [{
-    opportunity_id: "opportunity", symbol: "EXAMPLE", strategy_code: "MOMENTUM", direction: "LONG",
+    opportunity_id: "opportunity", entity_id: "entity", entity_name: "Example & Co", source_symbol: "EXAMPLE", symbol: "EXAMPLE", strategy_code: "MOMENTUM", direction: "LONG",
+    signal_type: "BUY", origin: "CORE", consensus_direction: "LONG", strategy_count: 2,
+    portfolio_match: false, portfolio_match_type: "NO_MATCH", portfolio_symbols: [],
+    attention_score: 70, composite_score: 82.25, verdict: null, summary: null,
     technical_score: 75, quant_score: 60, llm_score: null, reference_price: 100,
     invalidation_price: 95, target_price: 110, signal_reasons: ["Trend positivo"], technical_evidence: { rsi: 55 },
   }],
@@ -291,4 +311,149 @@ test("entity memberships show an explicit empty watchlist state without links", 
   const nodes = entityNodes();
   assert.ok(nodes.some(node => node.props.children === "Watchlist: Nessuna"));
   assert.equal(nodes.some(node => node.type === "Link" && node.props.to?.startsWith("/watchlists/")), false);
+});
+
+test("signal chips preserve screener labels and colors for all directions and AI verdicts", () => {
+  const columns = opportunityColumnsExports.screenerOpportunityColumns(() => {});
+  const row = entityOverview.opportunities[0];
+  const cell = (field, overrides) => columns.find(column => column.field === field).renderCell({ row: { ...row, ...overrides } }).props;
+  for (const [signal_type, color] of [["BUY", "success"], ["STRONG_BUY", "success"], ["SELL", "error"], ["STRONG_SELL", "error"], [null, "default"]]) {
+    assert.equal(cell("signal_type", { signal_type }).color, color);
+    assert.equal(cell("signal_type", { signal_type }).label, `${signal_type ?? "N/D"} · MOMENTUM`);
+  }
+  for (const [direction, color] of [["LONG", "success"], ["SHORT", "error"], ["NEUTRAL", "default"]]) {
+    assert.equal(cell("direction", { direction }).color, color);
+  }
+  for (const [origin, color] of [["CORE", "primary"], ["DISCOVERY", "secondary"], ["OTHER", "default"]]) {
+    assert.equal(cell("origin", { origin }).color, color);
+  }
+  for (const [consensus_direction, color] of [["LONG", "success"], ["SHORT", "error"], ["CONFLICT", "warning"], ["NEUTRAL", "default"]]) {
+    const chip = cell("consensus_direction", { consensus_direction });
+    assert.equal(chip.color, color);
+    assert.equal(chip.label, `${consensus_direction} · 2`);
+  }
+  for (const [verdict, color, label] of [["CONFIRM", "success", "Confermato"], ["REVIEW", "warning", "Da valutare"], ["REJECT", "error", "Non confermato"], [null, "default", "Non disponibile"]]) {
+    assert.equal(cell("verdict", { verdict }).color, color);
+    assert.equal(cell("verdict", { verdict }).label, label);
+  }
+  for (const [portfolio_match_type, color, label] of [["EXACT_INSTRUMENT", "success", "Strumento posseduto"], ["SAME_ISIN", "primary", "Stesso ISIN"], ["SAME_ENTITY", "info", "Stessa entità"]]) {
+    const chip = cell("portfolio_match_type", { portfolio_match: true, portfolio_match_type, portfolio_symbols: ["EXAMPLE"] });
+    assert.equal(chip.color, color);
+    assert.equal(chip.label, `${label} · EXAMPLE`);
+  }
+});
+
+test("signal scores retain screener thresholds and unavailable AI presentation", () => {
+  const columns = opportunityColumnsExports.screenerOpportunityColumns(() => {});
+  const row = entityOverview.opportunities[0];
+  for (const field of ["attention_score", "technical_score", "quant_score", "llm_score", "composite_score"]) {
+    for (const [value, color, text] of [[null, "text.secondary", "–"], [39.9, "error.main", "39.9"], [40, "warning.main", "40.0"], [69.9, "warning.main", "69.9"], [70, "success.main", "70.0"]]) {
+      const cell = columns.find(column => column.field === field).renderCell({ row: { ...row, [field]: value } });
+      assert.equal(cell.props.sx.color, color);
+      assert.equal(cell.props.children, text);
+      assert.equal(cell.props.sx.fontWeight, field === "composite_score" ? 700 : 600);
+    }
+  }
+  const summary = columns.find(column => column.field === "summary");
+  assert.equal(summary.renderCell({ row }).props.children.props.children, "Non analizzato con AI");
+  assert.equal(summary.renderCell({ row: { ...row, llm_score: 50 } }).props.children.props.children, "Sintesi non disponibile");
+  assert.equal(summary.renderCell({ row: { ...row, summary: "AI summary" } }).props.children.props.children, "AI summary");
+});
+
+test("entity signal row and detail icon open the same analysis while the entity link stays independent", () => {
+  const { tree, navigations } = renderEntities(false, entityOverview);
+  const findGrid = node => {
+    if (Array.isArray(node)) return node.map(findGrid).find(Boolean);
+    if (!node || typeof node !== "object") return;
+    if (node.type === "DataGrid" && node.props.rows === entityOverview.opportunities) return node;
+    return findGrid(node.props?.children);
+  };
+  const grid = findGrid(tree);
+  const row = entityOverview.opportunities[0];
+  grid.props.onRowClick({ row });
+  const icon = grid.props.columns.find(column => column.field === "detail").renderCell({ row }).props.children;
+  let stopped = 0;
+  icon.props.onClick({ stopPropagation: () => stopped++ });
+  assert.equal(icon.props["aria-label"], "Apri analisi di EXAMPLE");
+  assert.equal(navigations.length, 2);
+  for (const destination of navigations) {
+    const url = new URL(destination, "http://localhost");
+    assert.equal(url.pathname, "/screener");
+    assert.equal(url.searchParams.get("context"), "ENTITY:entity");
+    assert.equal(url.searchParams.get("context_name"), "Example & Co");
+    assert.equal(url.searchParams.get("opportunity"), "opportunity");
+  }
+  const link = grid.props.columns.find(column => column.field === "entity_name").renderCell({ row });
+  assert.equal(link.props.to, "/entities/entity");
+  link.props.onClick({ stopPropagation: () => stopped++ });
+  assert.equal(stopped, 2);
+  assert.equal(navigations.length, 2);
+  assert.equal(grid.props.initialState, opportunityColumnsExports.screenerOpportunityInitialState);
+  assert.equal(grid.props.showToolbar, true);
+});
+
+const screenerCompiled = ts.transpileModule(readFileSync(new URL("../src/pages/ScreenerPage.tsx", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+}).outputText;
+
+function renderScreener(destination) {
+  const exports = {};
+  const queries = [];
+  const requests = [];
+  const stateUpdates = [];
+  runInNewContext(screenerCompiled, {
+    exports,
+    URLSearchParams,
+    require: name => {
+      if (name === "react/jsx-runtime") return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
+      if (name === "react") return {
+        useState: initial => [typeof initial === "function" ? initial() : initial, value => stateUpdates.push(value)],
+        useEffect: () => {}, useMemo: factory => factory(),
+      };
+      if (name === "react-router-dom") return { useSearchParams: () => [new URL(destination, "http://localhost").searchParams, () => {}] };
+      if (name === "../components/screenerOpportunityColumns") return opportunityColumnsExports;
+      if (name === "@tanstack/react-query") return {
+        useIsMutating: () => 0, useQueryClient: () => ({}), useMutation: () => ({}),
+        useQuery: options => { queries.push(options); return { data: options.queryKey[0] === "context-instruments" ? [] : undefined }; },
+      };
+      if (name === "@mui/material") return Object.fromEntries([
+        "Alert", "Box", "Button", "Chip", "Collapse", "Dialog", "DialogActions", "DialogContent", "DialogTitle", "IconButton", "FormControlLabel", "LinearProgress", "MenuItem", "Paper", "Stack", "Switch", "Tab", "Tabs", "TextField", "Tooltip", "Typography",
+      ].map(component => [component, component]));
+      if (name === "@mui/x-data-grid") return { DataGrid: "DataGrid" };
+      if (name.startsWith("@mui/icons-material/") || ["../components/AlertRuleSettings", "../components/SignalPerformanceHistory", "../components/ScreenerRunLogDialog"].includes(name)) return { __esModule: true, default: name };
+      if (name === "../services/timestamps") return { formatTimestamp: value => value };
+      if (name === "../services/marketScreener") return { getScreenerOpportunity: id => requests.push(id) };
+      throw new Error(`Unexpected module: ${name}`);
+    },
+  });
+  const nodes = [];
+  const visit = node => {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!node || typeof node !== "object") return;
+    nodes.push(node);
+    visit(node.props?.children);
+  };
+  visit(exports.default());
+  return { nodes, queries, requests, stateUpdates };
+}
+
+test("screener uses the shared grid and opens analysis from the entity navigation URL", () => {
+  for (const opportunity of ["opportunity", null]) {
+    const destination = opportunity ? "/screener?context=ENTITY:entity&context_name=Example&opportunity=opportunity" : "/screener";
+    const { nodes, queries, requests, stateUpdates } = renderScreener(destination);
+    const detailQuery = queries.find(query => query.queryKey[0] === "market-screener-detail");
+    assert.equal(detailQuery.queryKey[1], opportunity);
+    assert.equal(detailQuery.enabled, Boolean(opportunity));
+    const dialog = nodes.find(node => node.type === "Dialog" && node.props.children.some(child => child?.type === "DialogTitle" && child.props.children === "Dettaglio opportunità"));
+    assert.equal(dialog.props.open, Boolean(opportunity));
+    if (opportunity) {
+      detailQuery.queryFn();
+      assert.deepEqual(requests, [opportunity]);
+    }
+    const grid = nodes.find(node => node.type === "DataGrid" && node.props.showToolbar);
+    assert.equal(grid.props.initialState, opportunityColumnsExports.screenerOpportunityInitialState);
+    assert.deepEqual(Array.from(grid.props.columns, column => column.headerName), Array.from(opportunityColumnsExports.screenerOpportunityColumns(() => {}), column => column.headerName));
+    grid.props.columns.find(column => column.field === "detail").renderCell({ row: entityOverview.opportunities[0] }).props.children.props.onClick({ stopPropagation: () => {} });
+    assert.deepEqual(stateUpdates, ["overview", "opportunity"]);
+  }
 });
