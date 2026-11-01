@@ -38,6 +38,9 @@ export default function DashboardPage() {
     },
     onError: error => notifyOperationError(error, "Impossibile avviare il job."),
   });
+  const screenerJob = jobs.data?.find(job => job.job_key === "market_screener_pipeline");
+  const canRunScreener = jobs.isSuccess && screenerJob && !screenerJob.request_only
+    && !["RUNNING", "QUEUED"].includes(screenerJob.last_status ?? "") && !execution.isPending;
   return (
     <Stack spacing={3}>
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
@@ -63,7 +66,10 @@ export default function DashboardPage() {
         {contexts.isSuccess && contexts.data.length === 0 && <Alert severity="info">Nessun contesto disponibile.</Alert>}
       </Box>
       <Box>
-        <Typography variant="h6" gutterBottom>Diagnostica analisi</Typography>
+        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1 }}>
+          <Typography variant="h6">Diagnostica analisi</Typography>
+          {isAdmin && <Button startIcon={<PlayArrow />} disabled={!canRunScreener} onClick={() => { if (canRunScreener && screenerJob) execution.mutate(screenerJob.job_key); }}>Esegui job</Button>}
+        </Stack>
         {runs.isError && <Alert severity="error">Stato delle analisi non disponibile. {runs.error.message}</Alert>}
         {isAdmin && jobs.isError && <Alert severity="warning">Stato scheduler non disponibile. {jobs.error.message}</Alert>}
         {runs.isSuccess && runs.data.length === 0 && <Alert severity="info">Nessuna esecuzione registrata.</Alert>}
@@ -77,7 +83,6 @@ export default function DashboardPage() {
               <TableCell align="right">{run.opportunity_count}</TableCell><TableCell>{run.completed_at ? formatTimestamp(run.completed_at) : "Non conclusa"}</TableCell><TableCell sx={{ overflowWrap: "anywhere" }}>{run.error_message ?? "-"}</TableCell>
               {isAdmin && <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                 <Tooltip title="Visualizza log"><span><IconButton aria-label="Visualizza log" disabled={!run.job_run_id} onClick={() => setSelectedRunId(run.job_run_id ?? null)}><Description /></IconButton></span></Tooltip>
-                <Tooltip title="Esegui job"><span><IconButton aria-label="Esegui job" disabled={!run.job_key || execution.isPending || !jobs.isSuccess || !jobs.data.some(job => job.job_key === run.job_key && !job.request_only) || jobs.data.some(job => job.job_key === run.job_key && ["RUNNING", "QUEUED"].includes(job.last_status ?? ""))} onClick={() => { if (run.job_key) execution.mutate(run.job_key); }}><PlayArrow /></IconButton></span></Tooltip>
               </TableCell>}
             </TableRow>)}</TableBody>
           </Table>

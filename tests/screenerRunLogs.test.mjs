@@ -68,3 +68,78 @@ test("log query errors and empty results are explicit", () => {
   assert.match(JSON.stringify(renderLogs({ queryState: { isError: true } }).tree), /Impossibile caricare/);
   assert.match(JSON.stringify(renderLogs({ queryState: { isSuccess: true, data: [] } }).tree), /Nessun log disponibile/);
 });
+
+const dashboardCompiled = ts.transpileModule(readFileSync(new URL("../src/pages/DashboardPage.tsx", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+}).outputText;
+
+function renderDashboard({ admin = true, status = "SUCCESS", pending = false, jobsAvailable = true } = {}) {
+  const requests = [];
+  const exports = {};
+  const element = (type, props) => ({ type, props });
+  runInNewContext(dashboardCompiled, {
+    exports,
+    require: name => {
+      if (name === "react/jsx-runtime") return { jsx: element, jsxs: element };
+      if (name === "react") return { useState: () => [null, () => {}] };
+      if (name === "react-router-dom") return { Link: "Link" };
+      if (name === "@tanstack/react-query") return {
+        useQueryClient: () => ({}),
+        useMutation: () => ({ isPending: pending, mutate: jobKey => requests.push(jobKey) }),
+        useQuery: ({ queryKey }) => {
+          if (queryKey[0] === "market-screener-contexts") return { data: [], isSuccess: true };
+          if (queryKey[0] === "market-screener-runs") return { isSuccess: true, data: [1, 2].map(index => ({
+            screener_run_id: `run-${index}`, job_run_id: `job-${index}`, job_key: "historical-job", status: "SUCCESS",
+          })) };
+          if (queryKey[0] === "scheduler-jobs") return { isSuccess: jobsAvailable, data: jobsAvailable ? [{
+            job_key: "market_screener_pipeline", last_status: status, request_only: false,
+          }] : undefined };
+          return {};
+        },
+      };
+      if (name === "@mui/material") return Object.fromEntries([
+        "Alert", "Box", "Button", "Chip", "Dialog", "DialogContent", "DialogTitle", "IconButton", "LinearProgress", "Stack", "Table", "TableBody", "TableCell", "TableContainer", "TableHead", "TableRow", "Tooltip", "Typography",
+      ].map(component => [component, component]));
+      if (name === "@mui/icons-material") return Object.fromEntries(["ArrowForward", "Close", "Description", "PlayArrow", "Refresh"].map(icon => [icon, icon]));
+      if (name === "../contexts/AuthProvider") return { useAuth: () => ({ user: { roles: admin ? ["ADMIN"] : [] } }) };
+      if (name === "../services/timestamps") return { formatTimestamp: value => value };
+      if (["../services/marketScreener", "../services/systemAdmin", "../services/operationFeedback"].includes(name)) return {};
+      throw new Error(`Unexpected module: ${name}`);
+    },
+  });
+  const nodes = [];
+  function visit(node) {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!node || typeof node !== "object") return;
+    nodes.push(node);
+    visit(node.props?.children);
+  }
+  visit(exports.default());
+  return { nodes, requests };
+}
+
+test("dashboard has one pipeline run button and only log buttons in historical rows", () => {
+  const { nodes, requests } = renderDashboard();
+  const buttons = nodes.filter(node => node.type === "Button" && node.props.children === "Esegui job");
+  assert.equal(buttons.length, 1);
+  assert.equal(buttons[0].props.disabled, false);
+  buttons[0].props.onClick();
+  assert.deepEqual(requests, ["market_screener_pipeline"]);
+  assert.equal(nodes.filter(node => node.type === "IconButton" && node.props["aria-label"] === "Esegui job").length, 0);
+  assert.equal(nodes.filter(node => node.type === "IconButton" && node.props["aria-label"] === "Visualizza log").length, 2);
+});
+
+test("dashboard prevents starting an active job or a job without available scheduler state", () => {
+  for (const settings of [{ status: "RUNNING" }, { status: "QUEUED" }, { pending: true }, { jobsAvailable: false }]) {
+    const { nodes, requests } = renderDashboard(settings);
+    const button = nodes.find(node => node.type === "Button" && node.props.children === "Esegui job");
+    assert.equal(button.props.disabled, true);
+    button.props.onClick();
+    assert.deepEqual(requests, []);
+  }
+});
+
+test("dashboard hides the run control from non-admin users", () => {
+  const { nodes } = renderDashboard({ admin: false });
+  assert.equal(nodes.filter(node => node.type === "Button" && node.props.children === "Esegui job").length, 0);
+});
