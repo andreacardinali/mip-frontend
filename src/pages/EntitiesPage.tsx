@@ -58,6 +58,26 @@ export default function EntitiesPage() {
       watchlist_names: overview.asset_match.watchlist_names.join(", "),
     };
   }) ?? [];
+  const analysisContext = analysis.variables;
+  const showsAnalysis = Boolean(overview && analysisContext && (
+    (analysisContext.context_type === "ENTITY" && analysisContext.context_id === overview.entity.entity_id)
+    || (analysisContext.context_type === "INSTRUMENT" && instrumentRows.some(row => row.instrument_id === analysisContext.context_id))
+  ));
+  const analysisTarget = analysisContext?.context_type === "INSTRUMENT"
+    ? instrumentRows.find(row => row.instrument_id === analysisContext.context_id)?.symbol ?? "Strumento"
+    : overview?.entity.name;
+  const scan = analysis.data?.scan;
+  const evaluated = Array.isArray(scan?.evaluated_instrument_ids) && scan.evaluated_instrument_ids.every(value => typeof value === "string")
+    ? new Set(scan.evaluated_instrument_ids).size : null;
+  const scanCount = (key: string, values = scan) => typeof values?.[key] === "number" && Number.isSafeInteger(values[key]) && values[key] >= 0 ? values[key] : null;
+  const candidates = scanCount("candidates");
+  const skipped = scanCount("skipped");
+  const failures = scanCount("failures");
+  const reasons = scan?.skipped_by_reason && typeof scan.skipped_by_reason === "object" && !Array.isArray(scan.skipped_by_reason)
+    ? scan.skipped_by_reason as Record<string, unknown> : undefined;
+  const withoutSignals = scanCount("NO_TECHNICAL_SIGNAL", reasons);
+  const insufficientHistory = scanCount("INSUFFICIENT_HISTORY", reasons);
+  const partialAnalysis = analysis.data?.status === "PARTIAL" || (skipped ?? 0) > (withoutSignals ?? 0) || (failures ?? 0) > 0;
 
   return <Stack spacing={2} sx={{ minWidth: 0 }}>
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
@@ -125,6 +145,27 @@ export default function EntitiesPage() {
             context_type: "ENTITY", context_id: overview.entity.entity_id,
           }); }}>Analizza tutti gli strumenti</Button>
       </Stack>
+      {showsAnalysis && <Box aria-live="polite" sx={{ overflowWrap: "anywhere" }}>
+        {analysis.isPending && <Alert severity="info">Analisi richiesta per {analysisTarget}: esecuzione in corso, in attesa dell'esito.</Alert>}
+        {analysis.isError && <Alert severity="error">Analisi non confermata per {analysisTarget}: {analysis.error.message}</Alert>}
+        {!analysis.isPending && analysis.data && <Alert severity={analysis.data.status === "FAILED" ? "error"
+          : partialAnalysis || evaluated === null || evaluated === 0 || candidates === null ? "warning" : "success"}>
+          <Stack spacing={1}>
+            <Typography variant="body2">{analysisTarget}: {analysis.data.status === "FAILED" ? "analisi fallita."
+              : evaluated === 0 ? "nessuno strumento valutato: l'analisi tecnica non ha potuto produrre un esito."
+              : evaluated === null ? "analisi terminata, ma il numero di strumenti valutati non e' disponibile."
+              : `${partialAnalysis ? "Analisi tecnica parziale" : "Analisi tecnica completata"}${candidates === 0 ? ": nessun segnale prodotto." : "."}`}</Typography>
+            <Typography variant="body2">Strumenti valutati: {evaluated ?? "non disponibile"} | Segnali prodotti: {candidates ?? "non disponibile"} | Esclusi dalla generazione di segnali: {skipped ?? "non disponibile"} | Errori sugli strumenti: {failures ?? "non disponibile"}</Typography>
+            {reasons && <Typography variant="body2">Valutati senza segnale tecnico: {withoutSignals ?? "non disponibile"} | Non valutati per storico insufficiente: {insufficientHistory ?? "non disponibile"}</Typography>}
+            {analysis.data.llm_enrichment && analysis.data.llm_enrichment.status !== "SUCCESS" && <Typography variant="body2">Arricchimento AI incompleto: {analysis.data.llm_enrichment.reason ?? "consultare i dettagli della scansione"}.</Typography>}
+            <Box component="details">
+              <Typography component="summary" sx={{ cursor: "pointer" }}>Dettagli dell'esecuzione</Typography>
+              <Typography variant="caption">Esecuzione: {analysis.data.run_id}</Typography>
+              <Box component="pre" sx={{ m: 0, maxHeight: 260, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(scan, null, 2)}</Box>
+            </Box>
+          </Stack>
+        </Alert>}
+      </Box>}
       <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={instrumentRows} getRowId={row => row.instrument_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 130 }, { field: "exchange", headerName: "Mercato", width: 140 },
         { field: "analysis", headerName: "Analisi", width: 130, sortable: false, filterable: false,

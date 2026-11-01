@@ -163,7 +163,7 @@ const entitiesCompiled = ts.transpileModule(readFileSync(new URL("../src/pages/E
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
-function renderEntities(pending, overview) {
+function renderEntities(pending, overview, mutationState = {}) {
   const exports = {};
   const queries = [];
   const invalidations = [];
@@ -180,7 +180,7 @@ function renderEntities(pending, overview) {
       if (name === "@tanstack/react-query") return {
         useIsMutating: () => pending ? 1 : 0,
         useQueryClient: () => ({ invalidateQueries: async options => { invalidations.push(options); } }),
-        useMutation: options => { mutation = options; return {}; },
+        useMutation: options => { mutation = options; return mutationState; },
         useQuery: options => { queries.push(options); return { data: options.queryKey[0] === "entity-overview" ? overview : undefined }; },
       };
       if (name === "@mui/material") return Object.fromEntries([
@@ -231,7 +231,7 @@ const entityOverview = {
   }],
 };
 
-function entityNodes(overview = entityOverview) {
+function entityNodes(overview = entityOverview, mutationState = {}) {
   const nodes = [];
   function visit(node) {
     if (Array.isArray(node)) return node.forEach(visit);
@@ -239,9 +239,58 @@ function entityNodes(overview = entityOverview) {
     nodes.push(node);
     visit(node.props?.children);
   }
-  visit(renderEntities(false, overview).tree);
+  visit(renderEntities(false, overview, mutationState).tree);
   return nodes;
 }
+
+test("entity retains explicit analysis outcomes even when no signal is produced", () => {
+  for (const [scan, status, severity, message] of [
+    [{ evaluated_instrument_ids: ["instrument"], candidates: 0, skipped: 0, failures: 0 }, "SUCCESS", "success", "Analisi tecnica completata: nessun segnale prodotto."],
+    [{ evaluated_instrument_ids: ["instrument"], candidates: 0, skipped: 1, failures: 0, skipped_by_reason: { NO_TECHNICAL_SIGNAL: 1, INSUFFICIENT_HISTORY: 0 } }, "SUCCESS", "success", "Analisi tecnica completata: nessun segnale prodotto."],
+    [{ evaluated_instrument_ids: [], candidates: 0, skipped: 1, failures: 0, skipped_by_reason: { INSUFFICIENT_HISTORY: 1 } }, "SUCCESS", "warning", "nessuno strumento valutato"],
+    [{ evaluated_instrument_ids: ["instrument"], candidates: 0, skipped: 1, failures: 0 }, "PARTIAL", "warning", "Analisi tecnica parziale: nessun segnale prodotto."],
+    [{ evaluated_instrument_ids: ["instrument"], candidates: 2, skipped: 0, failures: 0 }, "SUCCESS", "success", "Analisi tecnica completata."],
+    [{}, "SUCCESS", "warning", "numero di strumenti valutati non e' disponibile"],
+    [{ evaluated_instrument_ids: [], candidates: 0, skipped: 0, failures: 1 }, "FAILED", "error", "analisi fallita."],
+  ]) {
+    const nodes = entityNodes(entityOverview, {
+      variables: { context_type: "ENTITY", context_id: "entity" },
+      data: { status, run_id: "run", scan },
+    });
+    const alert = nodes.find(node => node.type === "Alert");
+    assert.equal(alert.props.severity, severity);
+    const content = JSON.stringify(alert);
+    assert.ok(content.includes(message), message);
+    assert.ok(content.includes("Strumenti valutati:"));
+    assert.ok(content.includes("Segnali prodotti:"));
+    assert.ok(content.includes("Esclusi dalla generazione di segnali:"));
+    assert.ok(content.includes("Dettagli dell'esecuzione"));
+    if (scan.skipped_by_reason) {
+      assert.ok(content.includes("Non valutati per storico insufficiente:"));
+      assert.ok(content.includes("Valutati senza segnale tecnico:"));
+    }
+  }
+});
+
+test("entity exposes pending and failed requests without claiming completion", () => {
+  for (const mutationState of [
+    { isPending: true },
+    { isError: true, error: new Error("Storico non disponibile") },
+  ]) {
+    const nodes = entityNodes(entityOverview, { ...mutationState, variables: { context_type: "ENTITY", context_id: "entity" } });
+    const alert = nodes.find(node => node.type === "Alert");
+    assert.equal(alert.props.severity, mutationState.isPending ? "info" : "error");
+    assert.ok(JSON.stringify(alert).includes(mutationState.isPending ? "in attesa dell'esito" : "Storico non disponibile"));
+  }
+});
+
+test("entity scopes the analysis outcome to the requested entity or instrument", () => {
+  const mutationState = { isPending: true, variables: { context_type: "INSTRUMENT", context_id: "instrument" } };
+  const overview = { ...entityOverview, instruments: [{ instrument_id: "instrument", symbol: "EXAMPLE" }] };
+  assert.ok(JSON.stringify(entityNodes(overview, mutationState)).includes("Analisi richiesta per "));
+  assert.equal(entityNodes(entityOverview, mutationState).some(node => node.type === "Alert"), false);
+  assert.equal(entityNodes(overview, { isPending: true, variables: { context_type: "ENTITY", context_id: "other-entity" } }).some(node => node.type === "Alert"), false);
+});
 
 test("entity labels distinguish loading from completed technical evaluations", () => {
   for (const lastAnalysis of [null, undefined, "2026-11-01T21:30:00Z"]) {
