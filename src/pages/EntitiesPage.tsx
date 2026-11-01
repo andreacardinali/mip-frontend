@@ -1,7 +1,7 @@
 import { useDeferredValue, useState } from "react";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, LinearProgress, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, LinearProgress, Link, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -63,11 +63,23 @@ export default function EntitiesPage() {
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
       {id && <Button component={RouterLink} to="/entities" startIcon={<ArrowBackIcon />}>Entita</Button>}
       <Typography variant="h4" sx={{ flex: 1, overflowWrap: "anywhere" }}>{overview?.entity.name ?? (id ? "Scheda entita" : "Entita")}</Typography>
-      <Button startIcon={<RefreshIcon />} onClick={() => void current.refetch()} disabled={current.isFetching}>Aggiorna</Button>
+      <Button startIcon={<RefreshIcon />} onClick={() => void current.refetch()} disabled={current.isFetching}>{id ? "Ricarica scheda" : "Aggiorna"}</Button>
     </Stack>
     {overview && <Stack direction="row" sx={{ gap: 1, columnGap: 3, flexWrap: "wrap" }}>
-      <Typography variant="caption" color="text.secondary">Scheda aggiornata: {timestamp(overview.observed_at)}</Typography>
-      <Typography variant="caption" color="text.secondary">Ultima analisi strumenti: {timestamp(overview.last_analysis_at ?? null)}</Typography>
+      <Tooltip describeChild title="Data di caricamento della scheda dal database, non di aggiornamento dei prezzi o di analisi degli strumenti.">
+        <Typography tabIndex={0} variant="caption" color="text.secondary">Scheda caricata: {timestamp(overview.observed_at)}</Typography>
+      </Tooltip>
+      <Tooltip describeChild title={overview.last_analysis_at
+        ? "Ultima scansione tecnica completata che ha valutato almeno uno strumento, anche senza generare segnali. Non certifica l'analisi di tutti gli strumenti."
+        : overview.instruments.length === 0
+          ? "La scheda non ha strumenti associati da analizzare. Non indica un errore di caricamento dei dati."
+          : "Non risulta una valutazione tecnica completata nei log disponibili. Non indica un errore di caricamento dei dati: le scansioni periodiche selezionano candidati e non coprono necessariamente tutti gli strumenti. Storico insufficiente, scansioni fallite o vecchi log senza dettaglio non aggiornano questa data."}>
+        <Typography tabIndex={0} variant="caption" color="text.secondary">{overview.last_analysis_at
+          ? `Ultima analisi tecnica registrata (almeno uno strumento): ${timestamp(overview.last_analysis_at)}`
+          : overview.instruments.length === 0
+            ? "Analisi tecnica: nessuno strumento associato"
+            : "Analisi tecnica: nessuna valutazione completata registrata"}</Typography>
+      </Tooltip>
     </Stack>}
     {id && analysisPending && <LinearProgress />}
     {current.isFetching && <LinearProgress />}

@@ -184,7 +184,7 @@ function renderEntities(pending, overview) {
         useQuery: options => { queries.push(options); return { data: options.queryKey[0] === "entity-overview" ? overview : undefined }; },
       };
       if (name === "@mui/material") return Object.fromEntries([
-        "Accordion", "AccordionDetails", "AccordionSummary", "Alert", "Box", "Button", "Chip", "LinearProgress", "Link", "MenuItem", "Stack", "TextField", "Typography",
+        "Accordion", "AccordionDetails", "AccordionSummary", "Alert", "Box", "Button", "Chip", "LinearProgress", "Link", "MenuItem", "Stack", "TextField", "Tooltip", "Typography",
       ].map(component => [component, component]));
       if (name === "@mui/x-data-grid") return { DataGrid: "DataGrid" };
       if (name.startsWith("@mui/icons-material/")) return { __esModule: true, default: name };
@@ -242,6 +242,39 @@ function entityNodes(overview = entityOverview) {
   visit(renderEntities(false, overview).tree);
   return nodes;
 }
+
+test("entity labels distinguish loading from completed technical evaluations", () => {
+  for (const lastAnalysis of [null, undefined, "2026-11-01T21:30:00Z"]) {
+    const nodes = entityNodes({
+      ...entityOverview,
+      observed_at: "2026-11-01T21:45:00Z",
+      last_analysis_at: lastAnalysis,
+      instruments: [{ instrument_id: "instrument", symbol: "EXAMPLE" }],
+    });
+    const content = JSON.stringify(nodes);
+    assert.ok(content.includes("Scheda caricata: "));
+    assert.ok(nodes.some(node => node.type === "Button" && node.props.children === "Ricarica scheda"));
+    assert.ok(!content.includes("Scheda aggiornata:"));
+    assert.ok(!content.includes("Ultima analisi strumenti:"));
+    if (lastAnalysis) {
+      assert.ok(content.includes(`Ultima analisi tecnica registrata (almeno uno strumento): ${lastAnalysis}`));
+      assert.ok(content.includes("Non certifica l'analisi di tutti gli strumenti."));
+    } else {
+      assert.ok(content.includes("Analisi tecnica: nessuna valutazione completata registrata"));
+      assert.ok(content.includes("Non indica un errore di caricamento dei dati"));
+      assert.ok(content.includes("non coprono necessariamente tutti gli strumenti"));
+    }
+    for (const tooltip of nodes.filter(node => node.type === "Tooltip")) {
+      assert.equal(tooltip.props.describeChild, true);
+      assert.equal(tooltip.props.children.props.tabIndex, 0);
+    }
+  }
+});
+
+test("entity without instruments has an explicit technical analysis state", () => {
+  const nodes = entityNodes({ ...entityOverview, last_analysis_at: null });
+  assert.ok(nodes.some(node => node.props.children === "Analisi tecnica: nessuno strumento associato"));
+});
 
 test("entity counters link to section anchors and catalysts precede news", () => {
   const nodes = entityNodes();
