@@ -62,7 +62,7 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
     refreshInProgress.current = true;
     try {
       const response = await api.post<ExecutionRequest>("/market-data/prices/refresh", undefined, { silentFeedback });
-      const result = await waitForJobRun<{ enqueued_count: number }>(response.data.job_run_id);
+      const result = await waitForJobRun<{ enqueued_count: number }>(response.data.job_run_id, { label: "Accodamento aggiornamento prezzi" });
       if (!silentFeedback) {
         notifyOperation(result.enqueued_count > 0
           ? `Aggiornamento prezzi: ${result.enqueued_count} strumenti accodati.`

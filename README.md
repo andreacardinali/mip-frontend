@@ -50,6 +50,33 @@ Watchlists contain entities rather than instruments, so the column is labelled
 `Watchlist (entita)` and shows the entity's watchlist names for every instrument.
 These columns use the existing overview asset-match payload.
 
+News and catalysts belong to the entity. Technical indicators, economic/AI
+analysis and screener signals belong to its instruments. The detail page places
+`Analizza tutti gli strumenti` beside the instrument table; it submits the same
+ENTITY screener context as before. Each row analyzes only that instrument.
+Neither action starts entity news or catalyst acquisition.
+
+## Job Diagnostics
+
+The toolbar diagnostics icon opens a global drawer. Session view tracks accepted
+screener and price-refresh requests followed by the frontend, showing run IDs,
+state transitions, precise timestamps and errors. Screener progress comes from
+the existing context progress endpoint and is shown only for the matching run.
+Price refresh completion means updates were queued, not that prices are ready.
+The memory-only history keeps up to 50 completed runs plus active runs, with up
+to 100 transitions per run. Logout clears it; page reload also discards it.
+Monitoring errors do not imply that the backend job failed or stopped.
+
+Administrators also have a Scheduler view with the five latest runs per job,
+including scheduled/background executions. Selecting a run streams its actual
+stored logs using a log-ID cursor, retaining the latest 1000 fetched entries.
+Lists refresh every 10 seconds and selected logs every 2 seconds while open.
+This is not a complete execution archive; System settings remains available.
+Non-administrators never query the administrative APIs. Diagnostic polling stops
+when the drawer is closed; the normal request-completion polling continues.
+No result payloads or persistent browser log storage are added.
+Focused tests: `node --test tests/jobRuns.test.mjs`.
+
 The backend requires manual installation of
 `oneshot/install_entity_list_filters.sql` before serving the updated entity list.
 Reapply the installer when upgrading from the previous list implementation.

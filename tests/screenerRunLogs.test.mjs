@@ -143,3 +143,59 @@ test("dashboard hides the run control from non-admin users", () => {
   const { nodes } = renderDashboard({ admin: false });
   assert.equal(nodes.filter(node => node.type === "Button" && node.props.children === "Esegui job").length, 0);
 });
+
+const entitiesCompiled = ts.transpileModule(readFileSync(new URL("../src/pages/EntitiesPage.tsx", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+}).outputText;
+
+function renderEntities(pending) {
+  const exports = {};
+  const queries = [];
+  const invalidations = [];
+  let mutation;
+  const element = (type, props) => ({ type, props });
+  runInNewContext(entitiesCompiled, {
+    exports,
+    require: name => {
+      if (name === "react/jsx-runtime") return { jsx: element, jsxs: element };
+      if (name === "react") return { useState: initial => [initial, () => {}], useDeferredValue: value => value };
+      if (name === "react-router-dom") return { Link: "Link", useParams: () => ({ id: "entity" }) };
+      if (name === "@tanstack/react-query") return {
+        useIsMutating: () => pending ? 1 : 0,
+        useQueryClient: () => ({ invalidateQueries: async options => { invalidations.push(options); } }),
+        useMutation: options => { mutation = options; return {}; },
+        useQuery: options => { queries.push(options); return {}; },
+      };
+      if (name === "@mui/material") return Object.fromEntries([
+        "Accordion", "AccordionDetails", "AccordionSummary", "Alert", "Box", "Button", "Chip", "LinearProgress", "Link", "MenuItem", "Stack", "TextField", "Typography",
+      ].map(component => [component, component]));
+      if (name === "@mui/x-data-grid") return { DataGrid: "DataGrid" };
+      if (name.startsWith("@mui/icons-material/")) return { __esModule: true, default: name };
+      if (name === "../services/timestamps") return { formatTimestamp: value => value };
+      if (name === "../services/entities" || name === "../services/marketScreener") return {};
+      throw new Error(`Unexpected module: ${name}`);
+    },
+  });
+  exports.default();
+  return { queries, mutation, invalidations };
+}
+
+test("entity queries refresh while analysis is running and stop polling afterward", () => {
+  for (const pending of [true, false]) {
+    const { queries } = renderEntities(pending);
+    assert.equal(queries.length, 2);
+    assert.ok(queries.every(query => query.refetchInterval === (pending ? 2000 : false)));
+    assert.equal(queries.find(query => query.queryKey[0] === "entity-overview").enabled, true);
+  }
+});
+
+test("entity queries invalidate on settlement including failed analyses with committed results", async () => {
+  const { mutation, invalidations } = renderEntities(false);
+  await mutation.onSettled(undefined, new Error("enrichment unavailable"));
+  assert.equal(invalidations.length, 1);
+  const { predicate } = invalidations[0];
+  for (const key of ["entities", "entity-overview", "market-screener", "market-screener-detail"]) {
+    assert.equal(predicate({ queryKey: [key] }), true);
+  }
+  assert.equal(predicate({ queryKey: ["news"] }), false);
+});

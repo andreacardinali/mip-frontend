@@ -238,12 +238,14 @@ export default function ScreenerPage() {
     queryKey: ["market-screener-detail", selectedId],
     queryFn: () => getScreenerOpportunity(selectedId ?? ""),
     enabled: Boolean(selectedId),
+    refetchInterval: analysisRunning ? 2_000 : false,
   });
 
   const signalEventsQuery = useQuery({
     queryKey: ["market-screener-signal-events", selectedId],
     queryFn: () => getScreenerSignalEvents(selectedId ?? ""),
     enabled: Boolean(selectedId && detailQuery.data),
+    refetchInterval: analysisRunning ? 2_000 : false,
   });
 
   const runsQuery = useQuery({
@@ -698,6 +700,9 @@ export default function ScreenerPage() {
           <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: "wrap", justifyContent: "space-between", mb: 1 }}>
             <Typography variant="body2">
               {progressQuery.data?.status === "QUEUED" ? "Analisi in coda allo scheduler"
+                : progress?.phase === "LLM_ENRICHMENT" ? (progress.total > 0
+                  ? `Arricchimento AI: ${progress.completed}/${progress.total} segnali`
+                  : "Preparazione arricchimento AI...")
                 : progress ? `Analisi tecnica: ${progress.completed}/${progress.total} strumenti`
                 : "Avvio analisi..."}
               {progress?.symbol && ` · ${progress.symbol}`}

@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthProvider";
 import { usePriceRefresh } from "../contexts/PriceRefreshProvider";
 import { ThemeModeContext } from "../contexts/ThemeModeContext";
 import NotificationCenter from "./NotificationCenter";
+import JobDiagnostics from "./JobDiagnostics";
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -60,6 +61,7 @@ export default function Layout() {
             </Tooltip>
             <Typography variant="body2" sx={{ display: { xs: "none", sm: "block" } }}>{user?.display_name ?? user?.username}</Typography>
             <NotificationCenter />
+            <JobDiagnostics />
             <Tooltip title="Esci"><IconButton aria-label="Esci" onClick={logout}><Logout /></IconButton></Tooltip>
           </Toolbar>
         </AppBar>

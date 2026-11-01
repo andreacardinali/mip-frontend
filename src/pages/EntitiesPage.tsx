@@ -19,7 +19,7 @@ export default function EntitiesPage() {
   const analysis = useMutation({
     mutationKey: screenerAnalysisMutationKey,
     mutationFn: analyzeScreenerContext,
-    onSuccess: async () => {
+    onSettled: async () => {
       await queryClient.invalidateQueries({ predicate: entry => {
         const key = entry.queryKey[0];
         return key === "entities" || key === "entity-overview"
@@ -30,8 +30,10 @@ export default function EntitiesPage() {
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<EntityScope>("ALL");
   const query = useDeferredValue(search.trim().toLocaleLowerCase());
-  const list = useQuery({ queryKey: ["entities", scope, query], queryFn: () => getEntities(scope, query), enabled: !id });
-  const detail = useQuery({ queryKey: ["entity-overview", id], queryFn: () => getEntityOverview(id!), enabled: Boolean(id) });
+  const list = useQuery({ queryKey: ["entities", scope, query], queryFn: () => getEntities(scope, query), enabled: !id,
+    refetchInterval: analysisPending ? 2_000 : false });
+  const detail = useQuery({ queryKey: ["entity-overview", id], queryFn: () => getEntityOverview(id!), enabled: Boolean(id),
+    refetchInterval: analysisPending ? 2_000 : false });
   const overview = detail.data;
   const current = id ? detail : list;
   const rows = list.data ?? [];
@@ -54,17 +56,11 @@ export default function EntitiesPage() {
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
       {id && <Button component={RouterLink} to="/entities" startIcon={<ArrowBackIcon />}>Entita</Button>}
       <Typography variant="h4" sx={{ flex: 1, overflowWrap: "anywhere" }}>{overview?.entity.name ?? (id ? "Scheda entita" : "Entita")}</Typography>
-      {overview && <>
-        <Button variant="contained" startIcon={<PlayArrowIcon />} disabled={analysisPending || !instrumentRows.length}
-          onClick={() => { if (!analysisPending) analysis.mutate({
-            context_type: "ENTITY", context_id: overview.entity.entity_id,
-          }); }}>{analysisPending ? "Analisi in corso..." : "Analizza entita"}</Button>
-      </>}
       <Button startIcon={<RefreshIcon />} onClick={() => void current.refetch()} disabled={current.isFetching}>Aggiorna</Button>
     </Stack>
     {overview && <Stack direction="row" sx={{ gap: 1, columnGap: 3, flexWrap: "wrap" }}>
       <Typography variant="caption" color="text.secondary">Scheda aggiornata: {timestamp(overview.observed_at)}</Typography>
-      <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(overview.last_analysis_at ?? null)}</Typography>
+      <Typography variant="caption" color="text.secondary">Ultima analisi strumenti: {timestamp(overview.last_analysis_at ?? null)}</Typography>
     </Stack>}
     {id && analysisPending && <LinearProgress />}
     {current.isFetching && <LinearProgress />}
@@ -101,7 +97,13 @@ export default function EntitiesPage() {
       </Stack>
       {overview.entity.description && <Typography>{overview.entity.description}</Typography>}
       <Typography variant="caption" color="text.secondary">ID: {overview.entity.entity_id} | Paese: {overview.entity.country_code ?? "N/D"}</Typography>
-      <Typography variant="h6">Strumenti e prezzi</Typography>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+        <Typography variant="h6" sx={{ flex: 1 }}>Strumenti: prezzi e analisi</Typography>
+        <Button variant="contained" startIcon={<PlayArrowIcon />} disabled={analysisPending || !instrumentRows.length}
+          onClick={() => { if (!analysisPending) analysis.mutate({
+            context_type: "ENTITY", context_id: overview.entity.entity_id,
+          }); }}>Analizza tutti gli strumenti</Button>
+      </Stack>
       <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={instrumentRows} getRowId={row => row.instrument_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 130 }, { field: "exchange", headerName: "Mercato", width: 140 },
         { field: "analysis", headerName: "Analisi", width: 130, sortable: false, filterable: false,
@@ -125,22 +127,22 @@ export default function EntitiesPage() {
         {overview.universes.map(universe => <Typography key={universe.universe_id}><Link component={RouterLink} to={`/universes/${universe.universe_id}`}>{universe.name}</Link> | {universe.code} | {universe.universe_type}</Typography>)}
         {!overview.asset_match.in_portfolio && overview.universes.length === 0 && <Typography color="text.secondary">Nessun portafoglio o universo associato.</Typography>}
       </Stack>
-      <Typography variant="h6">Segnali screener attivi</Typography>
+      <Typography variant="h6">Segnali degli strumenti</Typography>
       {overview.opportunities.length === 0 ? <Typography color="text.secondary">Nessun segnale attivo.</Typography> : <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.opportunities} getRowId={row => row.opportunity_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 120 }, { field: "strategy_code", headerName: "Strategia", width: 160 },
         { field: "direction", headerName: "Direzione", width: 115 }, { field: "composite_score", headerName: "Score", width: 100 },
         { field: "consensus_direction", headerName: "Consenso", width: 130 }, { field: "verdict", headerName: "Verdetto AI", width: 140 },
         { field: "summary", headerName: "Sintesi", minWidth: 260, flex: 1 },
       ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>}
-      <Button component={RouterLink} to={`/screener?context=ENTITY:${overview.entity.entity_id}&context_name=${encodeURIComponent(overview.entity.name)}`}>Segnali e analisi</Button>
-      <Typography variant="h6">News ({overview.news.length} / {overview.news_count})</Typography>
+      <Button component={RouterLink} to={`/screener?context=ENTITY:${overview.entity.entity_id}&context_name=${encodeURIComponent(overview.entity.name)}`} startIcon={<PlayArrowIcon />}>Apri screener</Button>
+      <Typography variant="h6">News dell'entita ({overview.news.length} / {overview.news_count})</Typography>
       {overview.news.length === 0 && <Typography color="text.secondary">Nessuna news associata.</Typography>}
       {overview.news.map(news => <Box key={news.news_id} sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}>
         <Typography variant="subtitle1">{news.url && /^https?:\/\//i.test(news.url) ? <Link href={news.url} target="_blank" rel="noopener noreferrer">{news.title ?? "Senza titolo"}</Link> : news.title ?? "Senza titolo"}</Typography>
         <Typography variant="caption" color="text.secondary">{timestamp(news.published_at)}</Typography>
         <Typography sx={{ overflowWrap: "anywhere" }}>{news.summary}</Typography>
       </Box>)}
-      <Typography variant="h6">Catalizzatori ({overview.catalysts.length} / {overview.catalyst_count})</Typography>
+      <Typography variant="h6">Catalizzatori dell'entita ({overview.catalysts.length} / {overview.catalyst_count})</Typography>
       {overview.catalysts.length === 0 && <Typography color="text.secondary">Nessun catalizzatore associato.</Typography>}
       {overview.catalysts.map(catalyst => <Box key={catalyst.catalyst_id} sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}><Typography>{catalyst.title ?? "Senza titolo"}</Typography><Typography variant="body2" color="text.secondary">{catalyst.catalyst_day} | {catalyst.catalyst_type ?? "N/D"} | {catalyst.status ?? "N/D"} | Importanza: {catalyst.importance ?? "N/D"} | {catalyst.source ?? "N/D"}</Typography></Box>)}
       <Accordion><AccordionSummary expandIcon={<ExpandMoreIcon />}>Diagnostica completa</AccordionSummary><AccordionDetails><Box component="pre" sx={{ m: 0, p: 2, maxHeight: 500, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(overview, null, 2)}</Box></AccordionDetails></Accordion>

@@ -27,7 +27,10 @@ export async function analyzeScreenerContext(context: { context_type:ScreenerCon
 	analysisInProgress = true;
 	try {
 		const { data } = await api.post<ExecutionRequest>("/screener/analyze", context);
-		const result = await waitForJobRun<ScreenerAnalysisResult>(data.job_run_id);
+		const result = await waitForJobRun<ScreenerAnalysisResult>(data.job_run_id, {
+			label: context.context_type === "ENTITY" ? "Analisi strumenti dell'entita" : "Analisi screener",
+			context,
+		});
 		notifyOperation(result.status === "FAILED" ? "Analisi fallita."
 			: result.status === "PARTIAL" ? "Analisi completata parzialmente." : "Analisi completata.",
 			result.status === "FAILED" ? "error" : result.status === "PARTIAL" ? "warning" : "success");

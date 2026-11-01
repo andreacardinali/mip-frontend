@@ -6,6 +6,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { setDisplayTimezone } from "../services/timestamps";
+import { clearTrackedJobs } from "../services/jobRuns";
 
 import {
   getCurrentUser,
@@ -29,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function refreshUser() {
     const token = localStorage.getItem("access_token");
     if (!token) {
+      clearTrackedJobs();
       setDisplayTimezone("UTC");
       setUser(null);
       return null;
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return currentUser;
     } catch {
       localStorage.removeItem("access_token");
+      clearTrackedJobs();
       setDisplayTimezone("UTC");
       setUser(null);
       return null;
@@ -65,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function logout() {
     localStorage.removeItem("access_token");
+    clearTrackedJobs();
     setDisplayTimezone("UTC");
     setUser(null);
     window.location.href = "/login";
