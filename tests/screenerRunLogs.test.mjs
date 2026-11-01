@@ -148,7 +148,7 @@ const entitiesCompiled = ts.transpileModule(readFileSync(new URL("../src/pages/E
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
-function renderEntities(pending) {
+function renderEntities(pending, overview) {
   const exports = {};
   const queries = [];
   const invalidations = [];
@@ -164,7 +164,7 @@ function renderEntities(pending) {
         useIsMutating: () => pending ? 1 : 0,
         useQueryClient: () => ({ invalidateQueries: async options => { invalidations.push(options); } }),
         useMutation: options => { mutation = options; return {}; },
-        useQuery: options => { queries.push(options); return {}; },
+        useQuery: options => { queries.push(options); return { data: options.queryKey[0] === "entity-overview" ? overview : undefined }; },
       };
       if (name === "@mui/material") return Object.fromEntries([
         "Accordion", "AccordionDetails", "AccordionSummary", "Alert", "Box", "Button", "Chip", "LinearProgress", "Link", "MenuItem", "Stack", "TextField", "Typography",
@@ -176,8 +176,8 @@ function renderEntities(pending) {
       throw new Error(`Unexpected module: ${name}`);
     },
   });
-  exports.default();
-  return { queries, mutation, invalidations };
+  const tree = exports.default();
+  return { queries, mutation, invalidations, tree };
 }
 
 test("entity queries refresh while analysis is running and stop polling afterward", () => {
@@ -198,4 +198,97 @@ test("entity queries invalidate on settlement including failed analyses with com
     assert.equal(predicate({ queryKey: [key] }), true);
   }
   assert.equal(predicate({ queryKey: ["news"] }), false);
+});
+
+const entityOverview = {
+  entity: { entity_id: "entity", name: "Example", entity_type: "COMPANY" },
+  asset_match: { portfolio_positions: [], watchlist_names: [], watchlist_items: [] },
+  instruments: [], universes: [], news: [], news_count: 0, catalysts: [], catalyst_count: 0,
+  opportunities: [{
+    opportunity_id: "opportunity", symbol: "EXAMPLE", strategy_code: "MOMENTUM", direction: "LONG",
+    technical_score: 75, quant_score: 60, llm_score: null, reference_price: 100,
+    invalidation_price: 95, target_price: 110, signal_reasons: ["Trend positivo"], technical_evidence: { rsi: 55 },
+  }],
+};
+
+function entityNodes(overview = entityOverview) {
+  const nodes = [];
+  function visit(node) {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!node || typeof node !== "object") return;
+    nodes.push(node);
+    visit(node.props?.children);
+  }
+  visit(renderEntities(false, overview).tree);
+  return nodes;
+}
+
+test("entity counters link to section anchors and catalysts precede news", () => {
+  const nodes = entityNodes();
+  for (const section of ["entity-catalysts", "entity-news", "entity-signals"]) {
+    const counter = nodes.find(node => node.type === "Chip" && node.props.href === `#${section}`);
+    assert.equal(counter.props.component, "a");
+    assert.equal(counter.props.clickable, true);
+    const heading = nodes.find(node => node.props.id === section);
+    assert.equal(heading.props.component, "h2");
+    assert.ok(heading.props.sx.scrollMarginTop > 0);
+  }
+  assert.ok(nodes.findIndex(node => node.props.id === "entity-catalysts") < nodes.findIndex(node => node.props.id === "entity-news"));
+});
+
+test("entity analysis results expose quantitative data and separate unavailable AI", () => {
+  const nodes = entityNodes();
+  const grid = nodes.find(node => node.type === "DataGrid" && node.props.rows === entityOverview.opportunities);
+  for (const field of ["technical_score", "quant_score", "llm_score", "composite_score"]) {
+    assert.ok(grid.props.columns.some(column => column.field === field));
+  }
+  const details = nodes.find(node => node.type === "AccordionDetails" && node.props.id === "analysis-opportunity");
+  const content = JSON.stringify(details);
+  for (const expected of ["Analisi tecnica e quantitativa", "Trend positivo", "100", "95", "110", "rsi", "Arricchimento AI", "Nessun arricchimento AI disponibile."]) {
+    assert.ok(content.includes(expected), expected);
+  }
+});
+
+test("entity empty results retain navigation anchors without creating analysis details", () => {
+  const nodes = entityNodes({ ...entityOverview, opportunities: [] });
+  assert.ok(nodes.some(node => node.props.id === "entity-signals"));
+  assert.ok(nodes.some(node => node.props.children === "Nessun segnale attivo."));
+  assert.equal(nodes.some(node => node.props.id === "analysis-opportunity"), false);
+});
+
+test("entity memberships use consistent labels and link each distinct watchlist by ID", () => {
+  const nodes = entityNodes({
+    ...entityOverview,
+    asset_match: {
+      ...entityOverview.asset_match,
+      in_portfolio: true,
+      portfolio_positions: [{ position_id: "position", portfolio_id: "portfolio", portfolio_name: "Core", symbol: "EXAMPLE", quantity: 2, match_type: "EXACT_INSTRUMENT" }],
+      watchlist_names: ["Preferiti"],
+      watchlist_items: [
+        { watchlist_item_id: "item-one", watchlist_id: "first", watchlist_name: "Preferiti", entity_id: "entity" },
+        { watchlist_item_id: "item-two", watchlist_id: "first", watchlist_name: "Preferiti", entity_id: "entity" },
+        { watchlist_item_id: "item-three", watchlist_id: "second", watchlist_name: "Preferiti", entity_id: "entity" },
+      ],
+    },
+    universes: [{ universe_id: "universe", name: "Mercato", code: "MARKET", universe_type: "CUSTOM" }],
+  });
+  const links = nodes.filter(node => node.type === "Link" && node.props.to);
+  for (const [destination, label] of [
+    ["/portfolios/portfolio", "Portafoglio: Core"],
+    ["/watchlists/first", "Watchlist: Preferiti"],
+    ["/watchlists/second", "Watchlist: Preferiti"],
+    ["/universes/universe", "Universo: Mercato"],
+  ]) {
+    const matching = links.filter(node => node.props.to === destination);
+    assert.equal(matching.length, 1, destination);
+    assert.equal(matching[0].props.children.join(""), label);
+    assert.equal(matching[0].props.component, "Link");
+  }
+  assert.equal(nodes.some(node => node.props.children === "Watchlist: Nessuna"), false);
+});
+
+test("entity memberships show an explicit empty watchlist state without links", () => {
+  const nodes = entityNodes();
+  assert.ok(nodes.some(node => node.props.children === "Watchlist: Nessuna"));
+  assert.equal(nodes.some(node => node.type === "Link" && node.props.to?.startsWith("/watchlists/")), false);
 });

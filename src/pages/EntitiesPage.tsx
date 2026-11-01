@@ -37,6 +37,7 @@ export default function EntitiesPage() {
   const overview = detail.data;
   const current = id ? detail : list;
   const rows = list.data ?? [];
+  const watchlistMemberships = [...new Map((overview?.asset_match.watchlist_items ?? []).map(item => [item.watchlist_id, item])).values()];
   const instrumentRows = overview?.instruments.map(instrument => {
     const positions = overview.asset_match.portfolio_positions.filter(
       position => position.instrument_id === instrument.instrument_id,
@@ -93,7 +94,9 @@ export default function EntitiesPage() {
         <Chip label={overview.entity.active ? "Attiva" : "Inattiva"} variant="outlined" />
         <Chip label={`Portafogli: ${overview.asset_match.portfolio_position_count}`} color={overview.asset_match.in_portfolio ? "success" : "default"} />
         <Chip label={`Watchlist: ${overview.asset_match.watchlist_item_count}`} color={overview.asset_match.in_watchlist ? "info" : "default"} />
-        <Chip label={`News: ${overview.news_count}`} /><Chip label={`Catalizzatori: ${overview.catalyst_count}`} /><Chip label={`Segnali attivi: ${overview.opportunities.length}`} />
+        <Chip component="a" href="#entity-catalysts" clickable label={`Catalizzatori: ${overview.catalyst_count}`} />
+        <Chip component="a" href="#entity-news" clickable label={`News: ${overview.news_count}`} />
+        <Chip component="a" href="#entity-signals" clickable label={`Segnali attivi: ${overview.opportunities.length}`} />
       </Stack>
       {overview.entity.description && <Typography>{overview.entity.description}</Typography>}
       <Typography variant="caption" color="text.secondary">ID: {overview.entity.entity_id} | Paese: {overview.entity.country_code ?? "N/D"}</Typography>
@@ -121,30 +124,56 @@ export default function EntitiesPage() {
         { field: "data_source", headerName: "Fonte", width: 150 },
       ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>
       <Typography variant="h6">Appartenenze</Typography>
-      <Stack spacing={1}>
-        {overview.asset_match.portfolio_positions.map(position => <Typography key={position.position_id}><Link component={RouterLink} to={`/portfolios/${position.portfolio_id}`}>{position.portfolio_name}</Link> | {position.symbol} | Quantita: {position.quantity} | {position.match_type}</Typography>)}
-        <Typography>Watchlist: {overview.asset_match.watchlist_names.join(", ") || "Nessuna"}</Typography>
-        {overview.universes.map(universe => <Typography key={universe.universe_id}><Link component={RouterLink} to={`/universes/${universe.universe_id}`}>{universe.name}</Link> | {universe.code} | {universe.universe_type}</Typography>)}
+      <Stack spacing={1} sx={{ overflowWrap: "anywhere" }}>
+        {overview.asset_match.portfolio_positions.map(position => <Typography key={position.position_id}><Link component={RouterLink} to={`/portfolios/${position.portfolio_id}`}>Portafoglio: {position.portfolio_name}</Link> | {position.symbol} | Quantita: {position.quantity} | {position.match_type}</Typography>)}
+        {watchlistMemberships.map(watchlist => <Typography key={watchlist.watchlist_id}><Link component={RouterLink} to={`/watchlists/${watchlist.watchlist_id}`}>Watchlist: {watchlist.watchlist_name}</Link></Typography>)}
+        {watchlistMemberships.length === 0 && <Typography color="text.secondary">Watchlist: Nessuna</Typography>}
+        {overview.universes.map(universe => <Typography key={universe.universe_id}><Link component={RouterLink} to={`/universes/${universe.universe_id}`}>Universo: {universe.name}</Link> | {universe.code} | {universe.universe_type}</Typography>)}
         {!overview.asset_match.in_portfolio && overview.universes.length === 0 && <Typography color="text.secondary">Nessun portafoglio o universo associato.</Typography>}
       </Stack>
-      <Typography variant="h6">Segnali degli strumenti</Typography>
+      <Typography id="entity-signals" component="h2" variant="h6" sx={{ scrollMarginTop: 96 }}>Risultati analisi: segnali degli strumenti</Typography>
       {overview.opportunities.length === 0 ? <Typography color="text.secondary">Nessun segnale attivo.</Typography> : <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.opportunities} getRowId={row => row.opportunity_id} disableRowSelectionOnClick columns={[
         { field: "symbol", headerName: "Simbolo", width: 120 }, { field: "strategy_code", headerName: "Strategia", width: 160 },
-        { field: "direction", headerName: "Direzione", width: 115 }, { field: "composite_score", headerName: "Score", width: 100 },
+        { field: "direction", headerName: "Direzione", width: 115 },
+        { field: "technical_score", headerName: "Score tecnico", type: "number", width: 130 },
+        { field: "quant_score", headerName: "Score quantitativo", type: "number", width: 165 },
+        { field: "llm_score", headerName: "Score AI", type: "number", width: 110 },
+        { field: "composite_score", headerName: "Score totale", type: "number", width: 120 },
         { field: "consensus_direction", headerName: "Consenso", width: 130 }, { field: "verdict", headerName: "Verdetto AI", width: 140 },
-        { field: "summary", headerName: "Sintesi", minWidth: 260, flex: 1 },
+        { field: "summary", headerName: "Sintesi AI", minWidth: 260, flex: 1 },
       ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>}
+      {overview.opportunities.map(opportunity => <Accordion key={opportunity.opportunity_id}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`analysis-${opportunity.opportunity_id}`} id={`analysis-heading-${opportunity.opportunity_id}`}>
+          <Typography sx={{ overflowWrap: "anywhere" }}>Analisi {opportunity.symbol} | {opportunity.strategy_code ?? "N/D"} | {opportunity.direction}</Typography>
+        </AccordionSummary>
+        <AccordionDetails id={`analysis-${opportunity.opportunity_id}`}>
+          <Stack spacing={1}>
+            <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(opportunity.last_analysis_at)}</Typography>
+            <Typography variant="subtitle2">Analisi tecnica e quantitativa</Typography>
+            <Typography>Score tecnico: {opportunity.technical_score ?? "N/D"} | Score quantitativo: {opportunity.quant_score ?? "N/D"}</Typography>
+            <Typography>Prezzo di riferimento: {opportunity.reference_price ?? "N/D"} | Invalidazione: {opportunity.invalidation_price ?? "N/D"} | Target: {opportunity.target_price ?? "N/D"}</Typography>
+            {(opportunity.signal_reasons ?? []).map((reason, index) => <Typography key={`${index}-${reason}`}>{reason}</Typography>)}
+            <Box component="details">
+              <Typography component="summary" sx={{ cursor: "pointer" }}>Indicatori tecnici</Typography>
+              <Box component="pre" sx={{ maxHeight: 300, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(opportunity.technical_evidence ?? {}, null, 2)}</Box>
+            </Box>
+            <Typography variant="subtitle2">Arricchimento AI</Typography>
+            <Typography>Verdetto: {opportunity.verdict ?? "N/D"} | Score AI: {opportunity.llm_score ?? "N/D"}</Typography>
+            <Typography sx={{ overflowWrap: "anywhere" }}>{opportunity.summary ?? "Nessun arricchimento AI disponibile."}</Typography>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>)}
       <Button component={RouterLink} to={`/screener?context=ENTITY:${overview.entity.entity_id}&context_name=${encodeURIComponent(overview.entity.name)}`} startIcon={<PlayArrowIcon />}>Apri screener</Button>
-      <Typography variant="h6">News dell'entita ({overview.news.length} / {overview.news_count})</Typography>
+      <Typography id="entity-catalysts" component="h2" variant="h6" sx={{ scrollMarginTop: 96 }}>Catalizzatori dell'entita ({overview.catalysts.length} / {overview.catalyst_count})</Typography>
+      {overview.catalysts.length === 0 && <Typography color="text.secondary">Nessun catalizzatore associato.</Typography>}
+      {overview.catalysts.map(catalyst => <Box key={catalyst.catalyst_id} sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}><Typography>{catalyst.title ?? "Senza titolo"}</Typography><Typography variant="body2" color="text.secondary">{catalyst.catalyst_day} | {catalyst.catalyst_type ?? "N/D"} | {catalyst.status ?? "N/D"} | Importanza: {catalyst.importance ?? "N/D"} | {catalyst.source ?? "N/D"}</Typography></Box>)}
+      <Typography id="entity-news" component="h2" variant="h6" sx={{ scrollMarginTop: 96 }}>News dell'entita ({overview.news.length} / {overview.news_count})</Typography>
       {overview.news.length === 0 && <Typography color="text.secondary">Nessuna news associata.</Typography>}
       {overview.news.map(news => <Box key={news.news_id} sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}>
         <Typography variant="subtitle1">{news.url && /^https?:\/\//i.test(news.url) ? <Link href={news.url} target="_blank" rel="noopener noreferrer">{news.title ?? "Senza titolo"}</Link> : news.title ?? "Senza titolo"}</Typography>
         <Typography variant="caption" color="text.secondary">{timestamp(news.published_at)}</Typography>
         <Typography sx={{ overflowWrap: "anywhere" }}>{news.summary}</Typography>
       </Box>)}
-      <Typography variant="h6">Catalizzatori dell'entita ({overview.catalysts.length} / {overview.catalyst_count})</Typography>
-      {overview.catalysts.length === 0 && <Typography color="text.secondary">Nessun catalizzatore associato.</Typography>}
-      {overview.catalysts.map(catalyst => <Box key={catalyst.catalyst_id} sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}><Typography>{catalyst.title ?? "Senza titolo"}</Typography><Typography variant="body2" color="text.secondary">{catalyst.catalyst_day} | {catalyst.catalyst_type ?? "N/D"} | {catalyst.status ?? "N/D"} | Importanza: {catalyst.importance ?? "N/D"} | {catalyst.source ?? "N/D"}</Typography></Box>)}
       <Accordion><AccordionSummary expandIcon={<ExpandMoreIcon />}>Diagnostica completa</AccordionSummary><AccordionDetails><Box component="pre" sx={{ m: 0, p: 2, maxHeight: 500, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(overview, null, 2)}</Box></AccordionDetails></Accordion>
     </>}
   </Stack>;
