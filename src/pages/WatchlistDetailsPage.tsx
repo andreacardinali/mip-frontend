@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Autocomplete,
@@ -13,6 +13,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  Link,
   Paper,
   Stack,
   TextField,
@@ -229,8 +230,10 @@ export default function WatchlistDetailsPage() {
           processRowUpdate={handleUpdateItem}
           getRowId={(row) => row.watchlist_item_id}
           columns={[
-            { field: "symbol", headerName: "Symbol", flex: 1 },
-            { field: "name", headerName: "Company", flex: 2 },
+            { field: "symbol", headerName: "Symbol", flex: 1,
+              renderCell: ({ row }) => row.entity_id ? <Link component={RouterLink} to={`/entities/${row.entity_id}`}>{row.symbol}</Link> : row.symbol },
+            { field: "name", headerName: "Company", flex: 2,
+              renderCell: ({ row }) => row.entity_id ? <Link component={RouterLink} to={`/entities/${row.entity_id}`}>{row.name}</Link> : row.name },
             {
               field: "priority",
               headerName: "Priority",

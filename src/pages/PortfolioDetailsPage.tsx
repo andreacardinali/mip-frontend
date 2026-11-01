@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  Link,
   Paper,
   Stack,
   TextField,
@@ -31,6 +32,7 @@ import PriceDisplay from "../components/PriceDisplay";
 import CurrencySelect from "../components/CurrencySelect";
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import { deletePosition, getPositions, savePosition } from "../services/positions";
+import { getScreenerContextInstruments } from "../services/marketScreener";
 import { getPortfolioSummary } from "../services/portfolios";
 import { searchAssets } from "../services/search";
 import { importSymbol } from "../services/imports";
@@ -53,6 +55,7 @@ type PositionRow = {
   position_id: string;
   portfolio_id: string;
   instrument_id: string;
+  entity_id?: string | null;
   symbol: string;
   name: string;
   quantity: number | string;
@@ -139,6 +142,13 @@ export default function PortfolioDetailsPage() {
     queryFn: () => getPositions(id!),
     enabled: Boolean(id),
   });
+
+  const contextInstruments = useQuery({
+    queryKey: ["market-screener-context-instruments", "PORTFOLIO", id],
+    queryFn: () => getScreenerContextInstruments("PORTFOLIO", id!),
+    enabled: Boolean(id),
+  });
+  const entityByInstrument = new Map(contextInstruments.data?.map(instrument => [instrument.instrument_id, instrument.entity_id]));
 
   const { data: summary } = useQuery<PortfolioSummary>({
     queryKey: ["portfolio-summary", id],
@@ -422,7 +432,7 @@ export default function PortfolioDetailsPage() {
 
       <Paper sx={{ height: 700 }}>
         <DataGrid
-          rows={data}
+          rows={data.map((row: PositionRow) => ({ ...row, entity_id: row.entity_id ?? entityByInstrument.get(row.instrument_id) }))}
           checkboxSelection
           disableRowSelectionOnClick
           rowSelectionModel={rowSelectionModel}
@@ -430,8 +440,10 @@ export default function PortfolioDetailsPage() {
           loading={isLoading}
           getRowId={(row) => row.position_id}
           columns={[
-            { field: "symbol", headerName: "Symbol", flex: 1 },
-            { field: "name", headerName: "Company", flex: 2 },
+            { field: "symbol", headerName: "Symbol", flex: 1,
+              renderCell: ({ row }) => row.entity_id ? <Link component={RouterLink} to={`/entities/${row.entity_id}`}>{row.symbol}</Link> : row.symbol },
+            { field: "name", headerName: "Company", flex: 2,
+              renderCell: ({ row }) => row.entity_id ? <Link component={RouterLink} to={`/entities/${row.entity_id}`}>{row.name}</Link> : row.name },
             {
               field: "quantity",
               headerName: "Quantity",

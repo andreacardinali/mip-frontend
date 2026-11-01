@@ -39,6 +39,7 @@ import type { GridColDef } from "@mui/x-data-grid";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
+import ScreenerRunLogDialog from "../components/ScreenerRunLogDialog";
 
 import {
   analyzeScreenerContext,
@@ -58,6 +59,7 @@ import type {
   ConsensusDirection,
   PortfolioMatchType,
   ScreenerContext,
+  ScreenerRun,
   ScreenerOpportunity,
   ScreenerSignalEvent,
   ScreenerSnapshotItem,
@@ -146,6 +148,7 @@ export default function ScreenerPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [logRun, setLogRun] = useState<ScreenerRun | null>(null);
   const [performanceOpen, setPerformanceOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
   const [changesSnapshotId, setChangesSnapshotId] = useState("");
@@ -246,7 +249,7 @@ export default function ScreenerPage() {
   const runsQuery = useQuery({
     queryKey: ["market-screener-runs"],
     queryFn: () => getScreenerRuns(20),
-    refetchInterval: refreshInterval,
+    refetchInterval: query => analysisRunning || logRun || query.state.data?.[0]?.status === "RUNNING" ? 2_000 : refreshInterval,
   });
   const snapshotsQuery = useQuery({
     queryKey: ["market-screener-snapshots"],
@@ -550,9 +553,7 @@ export default function ScreenerPage() {
         spacing={2}
         sx={{ justifyContent: "space-between", mb: 2 }}
       >
-        <Box>
-          <Typography variant="h4" sx={{ overflowWrap: "anywhere" }}>{selectedContext ? `Segnali: ${selectedContext.name}` : "Screener"}</Typography>
-        </Box>
+        {selectedContext && <Typography variant="h4" sx={{ overflowWrap: "anywhere" }}>Segnali: {selectedContext.name}</Typography>}
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
           <Button variant="outlined" startIcon={<CompareArrowsIcon />} onClick={() => {
             setChangesSnapshotId("");
@@ -813,8 +814,10 @@ export default function ScreenerPage() {
         </Tabs>
         {latestRun && (
           <Chip
-            color={latestRun.status === "SUCCESS" ? "success" : latestRun.status === "PARTIAL" ? "warning" : "error"}
+            color={latestRun.status === "SUCCESS" ? "success" : latestRun.status === "PARTIAL" ? "warning" : latestRun.status === "RUNNING" ? "info" : "error"}
             label={`Ultimo run: ${latestRun.status} · ${formatTimestamp(latestRun.started_at)}`}
+            onClick={() => setLogRun(latestRun)}
+            aria-label={`Apri log ultima esecuzione: ${latestRun.status}`}
           />
         )}
       </Stack>
@@ -1148,6 +1151,9 @@ export default function ScreenerPage() {
         <DialogActions><Button onClick={() => setHistoryOpen(false)}>Chiudi</Button></DialogActions>
       </Dialog>
 
+      {logRun && <ScreenerRunLogDialog key={logRun.screener_run_id}
+        run={runsQuery.data?.find(run => run.screener_run_id === logRun.screener_run_id) ?? logRun}
+        onClose={() => setLogRun(null)} />}
     </Box>
   );
 }
