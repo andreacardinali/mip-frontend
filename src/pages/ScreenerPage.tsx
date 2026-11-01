@@ -38,7 +38,7 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 import ScreenerRunLogDialog from "../components/ScreenerRunLogDialog";
-import { screenerOpportunityColumns, screenerOpportunityInitialState, score, matchLabel, matchColor, directionColor, originColor, verdictColor, verdictLabel, scoreColor } from "../components/screenerOpportunityColumns";
+import { analysisDescription, screenerOpportunityColumns, screenerOpportunityInitialState, score, matchLabel, matchColor, directionColor, originColor, verdictColor, verdictLabel, scoreColor } from "../components/screenerOpportunityColumns";
 
 import {
   analyzeScreenerContext,
@@ -650,33 +650,33 @@ export default function ScreenerPage() {
           {selected && (
             <Stack spacing={3}>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                <Chip label={`#${selected.ranking_position}`} />
-                <Chip label={`${selected.source_symbol} · ${selected.source_exchange ?? "N/D"}`} />
-                <Chip label={selected.source_currency_code ?? "N/D"} />
-                <Chip
+                <Tooltip describeChild title={analysisDescription("ranking_position", selected.ranking_position)}><Chip tabIndex={0} label={`#${selected.ranking_position}`} /></Tooltip>
+                <Tooltip describeChild title={analysisDescription("source_symbol", selected.source_symbol)}><Chip tabIndex={0} label={`${selected.source_symbol} · ${selected.source_exchange ?? "N/D"}`} /></Tooltip>
+                <Tooltip describeChild title={analysisDescription("source_currency_code", selected.source_currency_code)}><Chip tabIndex={0} label={selected.source_currency_code ?? "N/D"} /></Tooltip>
+                <Tooltip describeChild title={analysisDescription("direction", selected.direction)}><Chip tabIndex={0}
                   color={directionColor(selected.direction)}
                   label={selected.direction}
-                />
-                <Chip
+                /></Tooltip>
+                <Tooltip describeChild title={analysisDescription("origin", selected.origin)}><Chip tabIndex={0}
                   color={originColor(selected.origin)}
                   label={selected.origin}
-                />
-                <Chip
+                /></Tooltip>
+                <Tooltip describeChild title={analysisDescription("verdict", selected.verdict)}><Chip tabIndex={0}
                   color={verdictColor(selected.verdict)}
                   label={selected.verdict ?? "N/D"}
-                />
-                <Chip
+                /></Tooltip>
+                <Tooltip describeChild title={analysisDescription("portfolio_match_type", selected.portfolio_match_type)}><Chip tabIndex={0}
                   color={matchColor(selected.portfolio_match_type)}
                   label={matchLabel(selected.portfolio_match_type)}
-                />
+                /></Tooltip>
               </Stack>
 
               <Box hidden={detailTab !== "overview"} role="tabpanel" id="signal-overview" aria-labelledby="signal-overview-tab">
                 <Typography variant="h6" sx={{ mb: 1 }}>Valutazione AI</Typography>
                 <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mb: 2 }}>
-                  <Chip label={verdictLabel(selected.verdict)} color={verdictColor(selected.verdict)} />
-                  <Chip label={`Score AI: ${score(selected.llm_score)}`} />
-                  <Chip label={`Score totale: ${score(selected.composite_score)}`} />
+                  <Tooltip describeChild title={analysisDescription("verdict", selected.verdict)}><Chip tabIndex={0} label={verdictLabel(selected.verdict)} color={verdictColor(selected.verdict)} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("llm_score", selected.llm_score)}><Chip tabIndex={0} label={`Score AI: ${score(selected.llm_score)}`} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("composite_score", selected.composite_score)}><Chip tabIndex={0} label={`Score totale: ${score(selected.composite_score)}`} /></Tooltip>
                 </Stack>
                 {selected.summary ? <Typography sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{selected.summary}</Typography>
                   : <Alert severity="info">{selected.llm_score === null
@@ -688,11 +688,11 @@ export default function ScreenerPage() {
               <Box>
                 <Typography variant="h6" sx={{ mb: 1 }}>Segnale tecnico</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mb: 2 }}>
-                  <Chip color="primary" label={selected.strategy_code ?? "Strategia N/D"} />
-                  <Chip color={selected.signal_type === "BUY" || selected.signal_type === "STRONG_BUY" ? "success" : selected.signal_type === "SELL" || selected.signal_type === "STRONG_SELL" ? "error" : "default"} label={selected.signal_type ?? "Tipo N/D"} />
-                  <Chip label={`Trend: ${selected.signal_trend ?? "N/D"}`} />
-                  <Chip label={`Timeframe: ${selected.signal_timeframe ?? "N/D"}`} />
-                  <Chip label={`Confidence: ${selected.signal_confidence === null ? "N/D" : `${(Number(selected.signal_confidence) * 100).toFixed(1)}%`}`} />
+                  <Tooltip describeChild title={analysisDescription("strategy_code", selected.strategy_code)}><Chip tabIndex={0} color="primary" label={selected.strategy_code ?? "Strategia N/D"} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("signal_type", selected.signal_type)}><Chip tabIndex={0} color={selected.signal_type === "BUY" || selected.signal_type === "STRONG_BUY" ? "success" : selected.signal_type === "SELL" || selected.signal_type === "STRONG_SELL" ? "error" : "default"} label={selected.signal_type ?? "Tipo N/D"} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("signal_trend", selected.signal_trend)}><Chip tabIndex={0} label={`Trend: ${selected.signal_trend ?? "N/D"}`} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("signal_timeframe", selected.signal_timeframe)}><Chip tabIndex={0} label={`Timeframe: ${selected.signal_timeframe ?? "N/D"}`} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("signal_confidence", selected.signal_confidence)}><Chip tabIndex={0} label={`Confidence: ${selected.signal_confidence === null ? "N/D" : `${(Number(selected.signal_confidence) * 100).toFixed(1)}%`}`} /></Tooltip>
                 </Stack>
                 <Typography>
                   Prezzo riferimento: {selected.reference_price ?? "N/D"} · Invalidazione: {selected.invalidation_price ?? "N/D"} · Target: {selected.target_price ?? "N/D"}
@@ -707,11 +707,11 @@ export default function ScreenerPage() {
                 </Box>
                 </Box>
               </Box>
-              <Typography sx={{ mt: 2 }}>
+              <Tooltip describeChild title={[analysisDescription("attention_score", selected.attention_score), analysisDescription("technical_score", selected.technical_score), analysisDescription("quant_score", selected.quant_score)].join(" ")}><Typography tabIndex={0} sx={{ mt: 2 }}>
                 Attention {score(selected.attention_score)} · Technical {score(selected.technical_score)} · Quant {score(selected.quant_score)}
-              </Typography>
+              </Typography></Tooltip>
               <Typography variant="h6" sx={{ mt: 2 }}>Consenso strategie</Typography>
-              <Typography>Direzione: {selected.consensus_direction} · Long: {selected.bullish_strategy_count} · Short: {selected.bearish_strategy_count}</Typography>
+              <Tooltip describeChild title={analysisDescription("consensus_direction", selected.consensus_direction)}><Typography tabIndex={0}>Direzione: {selected.consensus_direction} · Long: {selected.bullish_strategy_count} · Short: {selected.bearish_strategy_count}</Typography></Tooltip>
               <Typography>Consenso: {score(selected.consensus_score)} · Conflitto: {score(selected.conflict_score)}</Typography>
               <Typography>Favorevoli: {selected.supporting_strategies.join(", ") || "N/D"}</Typography>
               <Typography>Contrarie: {selected.opposing_strategies.join(", ") || "N/D"}</Typography>
@@ -796,12 +796,12 @@ export default function ScreenerPage() {
                         <Typography color="text.secondary">
                           {position.exchange ?? "N/D"} · {position.currency_code ?? "N/D"} · ISIN {position.isin ?? "N/D"}
                         </Typography>
-                        <Chip
+                        <Tooltip describeChild title={analysisDescription("portfolio_match_type", position.match_type)}><Chip tabIndex={0}
                           size="small"
                           sx={{ mt: 1 }}
                           color={matchColor(position.match_type)}
                           label={matchLabel(position.match_type)}
-                        />
+                        /></Tooltip>
                       </Paper>
                     ))}
                   </Stack>
@@ -812,12 +812,11 @@ export default function ScreenerPage() {
                 <Typography variant="h6">Strumenti della stessa entità</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mt: 1 }}>
                   {selected.alternative_instruments.map((instrument) => (
-                    <Chip
-                      key={instrument.instrument_id}
+                    <Tooltip key={instrument.instrument_id} describeChild title={`${analysisDescription("source_symbol", instrument.symbol)} ${instrument.is_source ? "Strumento su cui e stato calcolato questo segnale." : instrument.same_isin ? "Strumento della stessa entita con lo stesso ISIN di quello analizzato." : "Strumento della stessa entita, distinto da quello analizzato e dal suo ISIN."}`}><Chip tabIndex={0}
                       color={instrument.is_source ? "primary" : "default"}
                       variant={instrument.is_source ? "filled" : "outlined"}
                       label={`${instrument.symbol} · ${instrument.exchange ?? "N/D"} · ${instrument.currency_code ?? "N/D"}${instrument.same_isin ? " · stesso ISIN" : ""}`}
-                    />
+                    /></Tooltip>
                   ))}
                 </Stack>
               </Box>

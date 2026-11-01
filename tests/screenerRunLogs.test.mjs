@@ -316,7 +316,14 @@ test("entity memberships show an explicit empty watchlist state without links", 
 test("signal chips preserve screener labels and colors for all directions and AI verdicts", () => {
   const columns = opportunityColumnsExports.screenerOpportunityColumns(() => {});
   const row = entityOverview.opportunities[0];
-  const cell = (field, overrides) => columns.find(column => column.field === field).renderCell({ row: { ...row, ...overrides } }).props;
+  const cell = (field, overrides) => {
+    const tooltip = columns.find(column => column.field === field).renderCell({ row: { ...row, ...overrides } });
+    assert.equal(tooltip.type, "Tooltip");
+    assert.equal(tooltip.props.describeChild, true);
+    assert.ok(tooltip.props.title.length > 20);
+    assert.equal(tooltip.props.children.props.tabIndex, 0);
+    return tooltip.props.children.props;
+  };
   for (const [signal_type, color] of [["BUY", "success"], ["STRONG_BUY", "success"], ["SELL", "error"], ["STRONG_SELL", "error"], [null, "default"]]) {
     assert.equal(cell("signal_type", { signal_type }).color, color);
     assert.equal(cell("signal_type", { signal_type }).label, `${signal_type ?? "N/D"} · MOMENTUM`);
@@ -348,7 +355,10 @@ test("signal scores retain screener thresholds and unavailable AI presentation",
   const row = entityOverview.opportunities[0];
   for (const field of ["attention_score", "technical_score", "quant_score", "llm_score", "composite_score"]) {
     for (const [value, color, text] of [[null, "text.secondary", "–"], [39.9, "error.main", "39.9"], [40, "warning.main", "40.0"], [69.9, "warning.main", "69.9"], [70, "success.main", "70.0"]]) {
-      const cell = columns.find(column => column.field === field).renderCell({ row: { ...row, [field]: value } });
+      const tooltip = columns.find(column => column.field === field).renderCell({ row: { ...row, [field]: value } });
+      assert.match(tooltip.props.title, /0-100/);
+      if (value === null) assert.match(tooltip.props.title, /Dato non disponibile/);
+      const cell = tooltip.props.children;
       assert.equal(cell.props.sx.color, color);
       assert.equal(cell.props.children, text);
       assert.equal(cell.props.sx.fontWeight, field === "composite_score" ? 700 : 600);
@@ -396,7 +406,7 @@ const screenerCompiled = ts.transpileModule(readFileSync(new URL("../src/pages/S
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
-function renderScreener(destination) {
+function renderScreener(destination, detail) {
   const exports = {};
   const queries = [];
   const requests = [];
@@ -414,7 +424,7 @@ function renderScreener(destination) {
       if (name === "../components/screenerOpportunityColumns") return opportunityColumnsExports;
       if (name === "@tanstack/react-query") return {
         useIsMutating: () => 0, useQueryClient: () => ({}), useMutation: () => ({}),
-        useQuery: options => { queries.push(options); return { data: options.queryKey[0] === "context-instruments" ? [] : undefined }; },
+        useQuery: options => { queries.push(options); return { data: options.queryKey[0] === "market-screener-detail" ? detail : options.queryKey[0] === "context-instruments" ? [] : undefined }; },
       };
       if (name === "@mui/material") return Object.fromEntries([
         "Alert", "Box", "Button", "Chip", "Collapse", "Dialog", "DialogActions", "DialogContent", "DialogTitle", "IconButton", "FormControlLabel", "LinearProgress", "MenuItem", "Paper", "Stack", "Switch", "Tab", "Tabs", "TextField", "Tooltip", "Typography",
@@ -456,4 +466,47 @@ test("screener uses the shared grid and opens analysis from the entity navigatio
     grid.props.columns.find(column => column.field === "detail").renderCell({ row: entityOverview.opportunities[0] }).props.children.props.onClick({ stopPropagation: () => {} });
     assert.deepEqual(stateUpdates, ["overview", "opportunity"]);
   }
+});
+
+test("analysis descriptions explain strong signals, unavailable values and unknown codes", () => {
+  const describe = opportunityColumnsExports.analysisDescription;
+  assert.match(describe("signal_type", "STRONG_BUY"), /non una garanzia/);
+  assert.match(describe("signal_type", "STRONG_SELL"), /ribassista/);
+  assert.match(describe("signal_type", "CUSTOM"), /descrizione non disponibile/);
+  assert.match(describe("verdict", null), /Dato non disponibile/);
+  assert.match(describe("signal_confidence", 0.8), /Non e una probabilita/);
+  assert.match(describe("composite_score", 80), /componenti disponibili/);
+  assert.match(describe("strategy_code", "SWING_EXIT"), /non indica qui un ingresso SHORT/);
+  assert.match(describe("strategy_code", "UNKNOWN"), /descrizione non disponibile/);
+  for (const code of ["TREND_PULLBACK", "SUPERTREND", "PULLBACK_DEEP_OVERSOLD", "SMC_CHOCH", "SMC_BOS", "CALL_ENTRY_SETUP", "SWING_EXIT"]) {
+    assert.doesNotMatch(describe("strategy_code", code), /non disponibile/);
+  }
+});
+
+test("analysis dialog shares accessible descriptions for its signal and AI chips", () => {
+  const detail = {
+    ...entityOverview.opportunities[0], strategy_code: "SWING_EXIT", signal_type: "SELL",
+    signal_trend: "STRONG_BULLISH", signal_timeframe: "1D", signal_confidence: 0.8,
+    supporting_strategies: [], opposing_strategies: [], portfolio_positions: [],
+    alternative_instruments: [{ instrument_id: "alternative", symbol: "ALT", exchange: "EX", currency_code: "EUR", is_source: false, same_isin: true }],
+  };
+  const { nodes } = renderScreener("/screener?opportunity=opportunity", detail);
+  const tooltips = nodes.filter(node => node.type === "Tooltip" && node.props.children?.type === "Chip");
+  for (const [label, field, value] of [
+    ["SWING_EXIT", "strategy_code", "SWING_EXIT"], ["SELL", "signal_type", "SELL"],
+    ["Trend: STRONG_BULLISH", "signal_trend", "STRONG_BULLISH"],
+    ["Timeframe: 1D", "signal_timeframe", "1D"], ["Confidence: 80.0%", "signal_confidence", 0.8],
+    ["Score AI: –", "llm_score", null], ["Nessun match", "portfolio_match_type", "NO_MATCH"],
+  ]) {
+    const tooltip = tooltips.find(node => node.props.children.props.label === label);
+    assert.ok(tooltip, label);
+    assert.equal(tooltip.props.title, opportunityColumnsExports.analysisDescription(field, value));
+    assert.equal(tooltip.props.describeChild, true);
+    assert.equal(tooltip.props.children.props.tabIndex, 0);
+  }
+  const alternativeTooltip = tooltips.find(node => node.props.children.props.label === "ALT · EX · EUR · stesso ISIN");
+  assert.match(alternativeTooltip.props.title, /stesso ISIN/);
+  assert.doesNotMatch(alternativeTooltip.props.title, /portafoglio/);
+  const consensusTooltip = nodes.find(node => node.type === "Tooltip" && node.props.children?.type === "Typography" && node.props.title === opportunityColumnsExports.analysisDescription("consensus_direction", "LONG"));
+  assert.equal(consensusTooltip.props.children.props.tabIndex, 0);
 });
