@@ -5,6 +5,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { setDisplayTimezone } from "../services/timestamps";
 
 import {
   getCurrentUser,
@@ -28,16 +29,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function refreshUser() {
     const token = localStorage.getItem("access_token");
     if (!token) {
+      setDisplayTimezone("UTC");
       setUser(null);
       return null;
     }
 
     try {
       const currentUser = await getCurrentUser();
+      setDisplayTimezone(currentUser.display_timezone ?? "UTC");
       setUser(currentUser);
       return currentUser;
     } catch {
       localStorage.removeItem("access_token");
+      setDisplayTimezone("UTC");
       setUser(null);
       return null;
     }
@@ -61,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function logout() {
     localStorage.removeItem("access_token");
+    setDisplayTimezone("UTC");
     setUser(null);
     window.location.href = "/login";
   }

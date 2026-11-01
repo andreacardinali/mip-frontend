@@ -6,6 +6,7 @@ export interface CurrentUser {
   email: string;
   is_active: boolean;
   reporting_currency: string;
+  display_timezone?: string;
   display_name?: string | null;
   roles: string[];
 }
@@ -26,9 +27,11 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 
 export async function updateAccountPreferences(
   reportingCurrency: string,
+  displayTimezone: string = "UTC",
 ): Promise<CurrentUser> {
   const response = await api.put("/auth/me/preferences", {
     reporting_currency: reportingCurrency.trim().toUpperCase(),
+    display_timezone: displayTimezone,
   });
 
   return response.data;

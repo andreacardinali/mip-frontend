@@ -1,14 +1,33 @@
 export type TimestampValue = string | number | Date | null | undefined;
 
 const relativeFormatter = new Intl.RelativeTimeFormat("it-IT", { numeric: "always" });
-const absoluteFormatter = new Intl.DateTimeFormat("it-IT", {
+let absoluteFormatter = new Intl.DateTimeFormat("it-IT", {
   dateStyle: "short", timeStyle: "short",
 });
-const logFormatter = new Intl.DateTimeFormat("it-IT", {
+let logFormatter = new Intl.DateTimeFormat("it-IT", {
   year: "numeric", month: "2-digit", day: "2-digit",
   hour: "2-digit", minute: "2-digit", second: "2-digit",
   fractionalSecondDigits: 3, hourCycle: "h23",
 });
+export function setDisplayTimezone(timeZone?: string) {
+  const absolute = new Intl.DateTimeFormat("it-IT", {
+    dateStyle: "short", timeStyle: "short", timeZone,
+  });
+  const log = new Intl.DateTimeFormat("it-IT", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    fractionalSecondDigits: 3, hourCycle: "h23", timeZone,
+  });
+  absoluteFormatter = absolute;
+  logFormatter = log;
+}
+
+export function formatAbsoluteTimestamp(value: TimestampValue): string {
+  if (value == null || value === "") return "N/D";
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? "N/D" : absoluteFormatter.format(date);
+}
+
 const daySeconds = 86400;
 
 export function formatLogTimestamp(value: TimestampValue): string {

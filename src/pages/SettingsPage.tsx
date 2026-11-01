@@ -64,6 +64,7 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
   const { user, refreshUser } = useAuth();
   const [reportingCurrencyOverride, setReportingCurrencyOverride] =
     useState<string | null>(null);
+  const [timezoneOverride, setTimezoneOverride] = useState<string | null>(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
@@ -80,6 +81,9 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
 
   const savedReportingCurrency = user?.reporting_currency ?? "EUR";
   const reportingCurrency = reportingCurrencyOverride ?? savedReportingCurrency;
+  const savedTimezone = user?.display_timezone ?? "UTC";
+  const displayTimezone = timezoneOverride ?? savedTimezone;
+  const timezones = [...new Set(["UTC", savedTimezone, ...Intl.supportedValuesOf("timeZone")])];
 
   async function reloadNotifications() {
     const response = await getNotificationPreferences();
@@ -115,7 +119,7 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
 
   const notificationsChanged = delivery.paused !== savedDelivery.paused
     || delivery.default_source_id !== savedDelivery.default_source_id;
-  const accountChanged = reportingCurrency !== savedReportingCurrency;
+  const accountChanged = reportingCurrency !== savedReportingCurrency || displayTimezone !== savedTimezone;
   const enabledSources = sources.filter((source) => source.enabled);
   const selectedChannel = channels.find(
     (channel) => channel.channel === sourceForm.source_type,
@@ -146,13 +150,14 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
     setIsSavingAccount(true);
     setError(null);
     try {
-      await updateAccountPreferences(reportingCurrency);
+      await updateAccountPreferences(reportingCurrency, displayTimezone);
       await refreshUser();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
         queryClient.invalidateQueries({ queryKey: ["portfolio-summary"] }),
       ]);
       setReportingCurrencyOverride(null);
+      setTimezoneOverride(null);
     } catch (saveError) {
       console.error(saveError);
       notifyOperationError(saveError, "Impossibile salvare le preferenze account.");
@@ -246,6 +251,13 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
               helperText="Valuta consolidata dell'account."
               onChange={setReportingCurrencyOverride}
             />
+            <FormControl fullWidth disabled={isSavingAccount}>
+              <InputLabel id="display-timezone-label">Fuso orario</InputLabel>
+              <Select labelId="display-timezone-label" label="Fuso orario"
+                value={displayTimezone} onChange={(event) => setTimezoneOverride(event.target.value)}>
+                {timezones.map((timezone) => <MenuItem key={timezone} value={timezone}>{timezone}</MenuItem>)}
+              </Select>
+            </FormControl>
             <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
               <Button
                 variant="contained"

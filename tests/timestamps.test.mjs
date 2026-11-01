@@ -7,7 +7,7 @@ const source = readFileSync(new URL("../src/services/timestamps.ts", import.meta
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { formatLogTimestamp, formatTimestamp } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { formatLogTimestamp, formatTimestamp, formatAbsoluteTimestamp, setDisplayTimezone } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 const now = Date.parse("2026-10-30T12:00:00Z");
 
 test("recent timestamps use Italian relative time in both directions", () => {
@@ -56,4 +56,17 @@ test("job log rows use precise timestamps instead of relative labels", () => {
   const page = readFileSync(new URL("../src/pages/SystemSettingsPage.tsx", import.meta.url), "utf8");
   assert.match(page, /formatLogTimestamp\(entry\.logged_at\)/);
   assert.doesNotMatch(page, /formatTimestamp\(entry\.logged_at\)/);
+});
+
+test("account timezone changes presentation only and can be reset", () => {
+  const instant = "2026-10-30T12:00:00Z";
+  for (const timeZone of ["UTC", "Europe/Rome", "America/New_York"]) {
+    setDisplayTimezone(timeZone);
+    assert.equal(formatAbsoluteTimestamp(instant), new Intl.DateTimeFormat("it-IT", {
+      dateStyle: "short", timeStyle: "short", timeZone,
+    }).format(new Date(instant)));
+    assert.equal(formatTimestamp(instant, now), "ora");
+  }
+  assert.throws(() => setDisplayTimezone("invalid/zone"), RangeError);
+  setDisplayTimezone();
 });
