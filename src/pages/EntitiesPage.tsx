@@ -143,7 +143,7 @@ export default function EntitiesPage() {
         <Button variant="contained" startIcon={<PlayArrowIcon />} disabled={analysisPending || !instrumentRows.length}
           onClick={() => { if (!analysisPending) analysis.mutate({
             context_type: "ENTITY", context_id: overview.entity.entity_id,
-          }); }}>Analizza tutti gli strumenti</Button>
+          }); }}>Analizza entita</Button>
       </Stack>
       {showsAnalysis && <Box aria-live="polite" sx={{ overflowWrap: "anywhere" }}>
         {analysis.isPending && <Alert severity="info">Analisi richiesta per {analysisTarget}: esecuzione in corso, in attesa dell'esito.</Alert>}
