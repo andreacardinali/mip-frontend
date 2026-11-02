@@ -80,6 +80,7 @@ export interface ScreenerAnalysisProgress {
 	error_message: string | null;
 	phase_results: {
 		progress?: { phase: string; completed: number; total: number; symbol: string | null };
+		analysis_scan?: { candidates?: number; evaluated_instrument_ids?: string[] };
 	};
 }
 export interface ScreenerRankingSnapshot { ranking_snapshot_id:string; screener_run_id:string; observed_at:string; opportunity_count:number; }

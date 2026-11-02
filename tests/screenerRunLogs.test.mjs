@@ -488,7 +488,7 @@ const screenerCompiled = ts.transpileModule(readFileSync(new URL("../src/pages/S
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
-function renderScreener(destination, detail) {
+function renderScreener(destination, detail, queryStates = {}) {
   const exports = {};
   const queries = [];
   const requests = [];
@@ -506,7 +506,7 @@ function renderScreener(destination, detail) {
       if (name === "../components/screenerOpportunityColumns") return opportunityColumnsExports;
       if (name === "@tanstack/react-query") return {
         useIsMutating: () => 0, useQueryClient: () => ({}), useMutation: () => ({}),
-        useQuery: options => { queries.push(options); return { data: options.queryKey[0] === "market-screener-detail" ? detail : options.queryKey[0] === "context-instruments" ? [] : undefined }; },
+        useQuery: options => { queries.push(options); return queryStates[options.queryKey[0]] ?? { data: options.queryKey[0] === "market-screener-detail" ? detail : options.queryKey[0] === "context-instruments" ? [] : undefined }; },
       };
       if (name === "@mui/material") return Object.fromEntries([
         "Alert", "Box", "Button", "Chip", "Collapse", "Dialog", "DialogActions", "DialogContent", "DialogTitle", "IconButton", "FormControlLabel", "LinearProgress", "MenuItem", "Paper", "Stack", "Switch", "Tab", "Tabs", "TextField", "Tooltip", "Typography",
@@ -547,6 +547,85 @@ test("screener uses the shared grid and opens analysis from the entity navigatio
     assert.deepEqual(Array.from(grid.props.columns, column => column.headerName), Array.from(opportunityColumnsExports.screenerOpportunityColumns(() => {}), column => column.headerName));
     grid.props.columns.find(column => column.field === "detail").renderCell({ row: entityOverview.opportunities[0] }).props.children.props.onClick({ stopPropagation: () => {} });
     assert.deepEqual(stateUpdates, ["overview", "opportunity"]);
+  }
+});
+
+test("screener keeps the last context run outcome and timestamps above an empty table", () => {
+  for (const [status, label, severity] of [["SUCCESS", "completato", "success"], ["PARTIAL", "completato parzialmente", "warning"], ["FAILED", "fallito", "error"]]) {
+    const { nodes } = renderScreener("/screener?context=ENTITY:entity&context_name=Example", undefined, {
+      "market-screener-progress": { data: { screener_run_id: "run", status, started_at: "2026-11-01T09:00:00Z", completed_at: "2026-11-01T09:01:00Z", error_message: status === "FAILED" ? "History unavailable" : null } },
+    });
+    const alert = nodes.find(node => node.type === "Alert" && JSON.stringify(node).includes("Ultimo run analisi"));
+    assert.equal(alert.props.severity, severity);
+    const content = JSON.stringify(alert);
+    assert.ok(content.includes(label));
+    assert.ok(content.includes("Avviato:"));
+    assert.ok(content.includes("Terminato:"));
+    assert.ok(content.includes("2026-11-01T09:00:00Z"));
+    assert.ok(content.includes("2026-11-01T09:01:00Z"));
+    if (status === "FAILED") assert.ok(content.includes("History unavailable"));
+    const grid = nodes.find(node => node.type === "DataGrid" && node.props.showToolbar);
+    assert.equal(grid.props.rows.length, 0);
+  }
+});
+
+test("screener distinguishes no signals from no instrument evaluation using the persisted scan", () => {
+  for (const [summary, message, severity] of [
+    [{ evaluated_instrument_ids: ["instrument"], candidates: 0 }, "Nessun segnale tecnico prodotto", "success"],
+    [{ evaluated_instrument_ids: [], candidates: 0 }, "Nessuno strumento valutato", "warning"],
+    [{ evaluated_instrument_ids: ["instrument"], candidates: 2 }, "Segnali prodotti:", "success"],
+  ]) {
+    const { nodes } = renderScreener("/screener?context=ENTITY:entity", undefined, {
+      "market-screener-progress": { data: { screener_run_id: "run", status: "SUCCESS", phase_results: { analysis_scan: summary } } },
+    });
+    const alert = nodes.find(node => node.type === "Alert" && JSON.stringify(node).includes("Ultimo run analisi"));
+    assert.equal(alert.props.severity, severity);
+    assert.ok(JSON.stringify(alert).includes(message));
+    assert.ok(JSON.stringify(alert).includes("Strumenti valutati:"));
+    assert.ok(JSON.stringify(alert).includes("non disponibile"));
+    const grid = nodes.find(node => node.type === "DataGrid" && node.props.showToolbar);
+    assert.equal(grid.props.rows.length, 0);
+  }
+  const { nodes } = renderScreener("/screener?context=ENTITY:entity", undefined, {
+    "market-screener-progress": { data: { screener_run_id: "run", status: "SUCCESS", phase_results: {} } },
+  });
+  assert.equal(JSON.stringify(nodes).includes("Nessun segnale tecnico prodotto"), false);
+  assert.equal(JSON.stringify(nodes).includes("Nessuno strumento valutato"), false);
+  assert.equal(JSON.stringify(nodes).includes("Strumenti valutati:"), false);
+});
+
+test("screener distinguishes missing run history from pending or failed retrieval", () => {
+  for (const [state, text] of [
+    [{ data: { screener_run_id: null } }, "nessuna esecuzione registrata"],
+    [{ isPending: true }, "lettura in corso"],
+    [{ isError: true }, "esito non disponibile"],
+  ]) {
+    const { nodes } = renderScreener("/screener?context=ENTITY:entity&context_name=Example", undefined, { "market-screener-progress": state });
+    assert.ok(JSON.stringify(nodes).includes(text));
+  }
+  const { nodes } = renderScreener("/screener");
+  assert.equal(JSON.stringify(nodes).includes("Ultimo run analisi"), false);
+});
+
+test("screener shows progress instead of a completed run while queued or running", () => {
+  for (const status of ["QUEUED", "RUNNING"]) {
+    const { nodes } = renderScreener("/screener?context=ENTITY:entity", undefined, { "market-screener-progress": { data: { screener_run_id: "run", status, phase_results: {} } } });
+    assert.equal(JSON.stringify(nodes).includes("Ultimo run analisi"), false);
+    assert.ok(nodes.some(node => node.type === "LinearProgress"));
+  }
+});
+
+test("screener row timestamp explains completed instrument evaluation and missing records", () => {
+  const column = opportunityColumnsExports.screenerOpportunityColumns(() => {}).find(item => item.field === "last_analysis_at");
+  assert.equal(column.type, "dateTime");
+  assert.equal(column.valueFormatter(null), "Non registrata");
+  assert.ok(column.renderHeader().props.title.includes("effettivamente valutato"));
+  for (const value of [null, "2026-11-01T09:01:00Z"]) {
+    const cell = column.renderCell({ row: { last_analysis_at: value } });
+    assert.equal(cell.props.children.props.children, value ?? "Non registrata");
+    assert.equal(cell.props.describeChild, true);
+    assert.equal(cell.props.children.props.tabIndex, 0);
+    assert.ok(cell.props.title.includes(value ? "Ultima valutazione tecnica completata" : "Non indica un errore di caricamento"));
   }
 });
 

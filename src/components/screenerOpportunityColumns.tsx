@@ -141,8 +141,14 @@ export function screenerOpportunityColumns(
       </Tooltip> },
     { field: "ranking_position", headerName: "Classifica", hideable: false, disableExport: true },
     { field: "last_analysis_at", headerName: "Ultima analisi", width: 185, type: "dateTime",
+      renderHeader: () => <Tooltip describeChild title="Ultima scansione completata che ha effettivamente valutato questo strumento, anche senza nuovi segnali. Non indica l'ultimo tentativo o l'aggiornamento dei prezzi."><Typography tabIndex={0} variant="body2" sx={{ fontWeight: 600 }}>Ultima analisi</Typography></Tooltip>,
       valueGetter: value => value ? new Date(value) : null,
-      valueFormatter: (value: Date | null) => formatTimestamp(value) },
+      valueFormatter: (value: Date | null) => value ? formatTimestamp(value) : "Non registrata",
+      renderCell: ({ row }) => <Tooltip describeChild title={row.last_analysis_at
+        ? "Ultima valutazione tecnica completata dello strumento. L'esito dell'ultimo run del contesto e' riportato sopra la tabella."
+        : "Nessuna valutazione tecnica completata registrata per questo strumento. Non indica un errore di caricamento; l'ultimo run potrebbe averlo escluso o non averlo valutato."}>
+        <Typography tabIndex={0} variant="body2" sx={{ alignSelf: "center" }}>{row.last_analysis_at ? formatTimestamp(row.last_analysis_at) : "Non registrata"}</Typography>
+      </Tooltip> },
     { field: "source_symbol", headerName: "Simbolo", width: 135,
       renderCell: ({ row }) => <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", height: "100%" }}>
         <span>{row.source_symbol}</span>

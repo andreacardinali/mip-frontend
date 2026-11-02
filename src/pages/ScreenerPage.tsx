@@ -144,6 +144,11 @@ export default function ScreenerPage() {
   const progressPercent = progress && progress.total > 0
     ? Math.min(100, Math.max(0, progress.completed / progress.total * 100)) : undefined;
   const completedAt = progressQuery.data?.completed_at;
+  const scanSummary = progressQuery.data?.phase_results?.analysis_scan;
+  const evaluatedCount = Array.isArray(scanSummary?.evaluated_instrument_ids)
+    ? scanSummary.evaluated_instrument_ids.length : undefined;
+  const candidateCount = typeof scanSummary?.candidates === "number"
+    && Number.isInteger(scanSummary.candidates) && scanSummary.candidates >= 0 ? scanSummary.candidates : undefined;
   useEffect(() => {
     if (completedAt) void queryClient.invalidateQueries({ queryKey: ["market-screener"] });
   }, [completedAt, queryClient]);
@@ -566,6 +571,24 @@ export default function ScreenerPage() {
         Impossibile caricare i contesti.
       </Alert>}
 
+      {selectedContext && !analysisRunning && <Box role="status" aria-live="polite" sx={{ mb: 2, overflowWrap: "anywhere" }}>
+        {progressQuery.isError ? <Alert severity="warning">Ultimo run analisi: esito non disponibile. Impossibile leggere lo stato dell'esecuzione.</Alert>
+          : progressQuery.isPending ? <Typography variant="body2">Ultimo run analisi: lettura in corso...</Typography>
+          : !progressQuery.data?.screener_run_id ? <Typography variant="body2" color="text.secondary">Ultimo run analisi: nessuna esecuzione registrata per {selectedContext.name}.</Typography>
+          : <Alert severity={progressQuery.data.status === "FAILED" ? "error" : progressQuery.data.status === "SUCCESS" && evaluatedCount !== 0 ? "success" : "warning"}>
+            <Stack spacing={0.5}>
+              <Typography variant="body2">Ultimo run analisi · {selectedContext.name}: {progressQuery.data.status === "SUCCESS" ? "completato"
+                : progressQuery.data.status === "PARTIAL" ? "completato parzialmente" : "fallito"}.</Typography>
+              <Typography variant="body2">Avviato: {progressQuery.data.started_at ? formatTimestamp(progressQuery.data.started_at) : "non disponibile"} | Terminato: {completedAt ? formatTimestamp(completedAt) : "non disponibile"}</Typography>
+              {(evaluatedCount !== undefined || candidateCount !== undefined) && <Typography variant="body2">Strumenti valutati: {evaluatedCount ?? "non disponibile"} | Segnali prodotti: {candidateCount ?? "non disponibile"}</Typography>}
+              {evaluatedCount === 0 && <Typography variant="body2">Nessuno strumento valutato in questo run.</Typography>}
+              {evaluatedCount !== undefined && evaluatedCount > 0 && candidateCount === 0 && <Typography variant="body2">Nessun segnale tecnico prodotto dagli strumenti valutati.</Typography>}
+              {progressQuery.data.error_message && <Typography variant="body2">{progressQuery.data.error_message}</Typography>}
+            </Stack>
+          </Alert>}
+      </Box>}
+      {selectedContext && analysis.isError && analysis.variables?.context_type === selectedContext.context_type && analysis.variables?.context_id === selectedContext.context_id && <Alert severity="error" sx={{ mb: 2 }}>Ultima richiesta di analisi non confermata: {analysis.error.message}</Alert>}
+
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }}>
         <Typography variant="body2" sx={{ alignSelf: "center" }}>{rows.length} segnali · {portfolioCount} collegati al portafoglio</Typography>
         <Tabs value={resultView} onChange={(_, value: string) => setResultView(value)} aria-label="Risultati disponibili">
@@ -575,7 +598,7 @@ export default function ScreenerPage() {
         {latestRun && (
           <Chip
             color={latestRun.status === "SUCCESS" ? "success" : latestRun.status === "PARTIAL" ? "warning" : latestRun.status === "RUNNING" ? "info" : "error"}
-            label={`Ultimo run: ${latestRun.status} · ${formatTimestamp(latestRun.started_at)}`}
+            label={`Ultima pipeline: ${latestRun.status} · ${formatTimestamp(latestRun.started_at)}`}
             onClick={() => setLogRun(latestRun)}
             aria-label={`Apri log ultima esecuzione: ${latestRun.status}`}
           />
