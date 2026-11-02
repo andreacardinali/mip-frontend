@@ -16,6 +16,7 @@ interface Props {
   onChange: (value: Record<string, InstrumentAlertOverride>) => void;
   alertType: AlertType;
   disabled: boolean;
+  notificationSources: { source_id: string; source_name: string; channel: string }[];
 }
 
 const scores = [
@@ -29,7 +30,7 @@ const events: Record<SignalEventType, string> = {
   CLOSED: "Chiuso", EXPIRED: "Scaduto",
 };
 
-export default function InstrumentAlertOverrides({ value, onChange, alertType, disabled }: Props) {
+export default function InstrumentAlertOverrides({ value, onChange, alertType, disabled, notificationSources }: Props) {
   const [selected, setSelected] = useState<InstrumentOption | null>(null);
   const instruments = useQuery<InstrumentOption[]>({
     queryKey: ["instruments"], queryFn: getInstruments,
@@ -83,6 +84,17 @@ export default function InstrumentAlertOverrides({ value, onChange, alertType, d
           <FormControlLabel label="Alert per questo strumento" control={<Switch
             checked={override.enabled !== false} disabled={disabled}
             onChange={(_, enabled) => update(id, "enabled", enabled)} />} />
+          <TextField select fullWidth label="Destinazione notifiche" disabled={disabled}
+            value={override.notification_source_id ?? ""}
+            onChange={event => update(id, "notification_source_id", event.target.value || undefined)}>
+            <MenuItem value="">Predefinita</MenuItem>
+            {override.notification_source_id && !notificationSources.some(source => source.source_id === override.notification_source_id) && (
+              <MenuItem disabled value={override.notification_source_id}>Destinazione non disponibile</MenuItem>
+            )}
+            {notificationSources.map(source => (
+              <MenuItem key={source.source_id} value={source.source_id}>{source.source_name} ({source.channel})</MenuItem>
+            ))}
+          </TextField>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
             <TextField select label="Sessione regolare" disabled={disabled}
               value={override.regular_session_only === undefined ? "" : String(override.regular_session_only)}

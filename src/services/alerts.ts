@@ -6,6 +6,7 @@ export type SignalEventType = "CREATED" | "CONFIRMED" | "DIRECTION_CHANGED" | "C
 
 export interface InstrumentAlertOverride {
   enabled?: boolean;
+  notification_source_id?: string;
   threshold?: number;
   price_direction?: "UP" | "DOWN" | "ANY";
   strategy_codes?: string[];

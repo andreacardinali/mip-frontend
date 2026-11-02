@@ -523,7 +523,8 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                   onChange={(_, enabled) => setForm({ ...form, enabled })} />} />
               </Box>
               <InstrumentAlertOverrides value={form.conditions.instrument_overrides}
-                onChange={value => condition("instrument_overrides", value)} alertType={form.alert_type} disabled={busy} />
+                onChange={value => condition("instrument_overrides", value)} alertType={form.alert_type} disabled={busy}
+                notificationSources={destinations.data?.sources.filter(source => source.enabled) ?? []} />
             </Stack>
           </DialogContent>
           <DialogActions>
