@@ -15,6 +15,7 @@ import MarketAlertsPage from "./pages/MarketAlertsPage";
 import WatchlistDetailsPage from "./pages/WatchlistDetailsPage";
 import PortfolioDetailsPage from "./pages/PortfolioDetailsPage";
 import SystemSettingsPage from "./pages/SystemSettingsPage";
+import PipelineDiagnosticsPage from "./pages/PipelineDiagnosticsPage";
 import Layout from "./components/Layout";
 import EntitiesPage from "./pages/EntitiesPage";
 import UniversesPage from "./pages/UniversesPage";
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/portfolios/:id" element={<PortfolioDetailsPage />} />
             <Route element={<AdminRoute />}>
               <Route path="/system-settings" element={<SystemSettingsPage />} />
+              <Route path="/system-diagnostics" element={<PipelineDiagnosticsPage />} />
             </Route>
           </Route>
         </Route>

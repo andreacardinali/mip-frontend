@@ -28,6 +28,7 @@ export default function Layout() {
   ];
   if (user?.roles.includes("ADMIN")) {
     menu.push({ label: "Sistema", path: "/system-settings", icon: <AdminPanelSettingsOutlined /> });
+    menu.push({ label: "Diagnostica", path: "/system-diagnostics", icon: <InsightsOutlined /> });
   }
   const active = menu.find((item) => item.path === "/" ? location.pathname === "/" : location.pathname.startsWith(item.path));
   const navigation = (

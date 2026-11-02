@@ -1,5 +1,80 @@
 import api from "../api/api";
 
+export interface PipelineDiagnostics {
+  generated_at: string;
+  window_days: number;
+  ingestion: {
+    by_stage_source: {
+      stage: string;
+      source: string;
+      event_count: number;
+      latest_ingested_at: string | null;
+    }[];
+    recent_events: {
+      event_id: string;
+      event_type: string;
+      stage: string;
+      source: string;
+      event_key: string;
+      revision: number;
+      entity_id: string | null;
+      occurred_at: string | null;
+      ingested_at: string;
+    }[];
+  };
+  processing: {
+    by_status: {
+      status: string;
+      run_count: number;
+      latest_started_at: string | null;
+    }[];
+    recent_runs: {
+      job_run_id: string;
+      job_key: string;
+      job_name: string;
+      status: string;
+      started_at: string;
+      completed_at: string | null;
+      error_message: string | null;
+      result: Record<string, unknown> | null;
+    }[];
+  };
+  notifications: {
+    by_status_channel: {
+      status: string;
+      channel: string;
+      notification_count: number;
+      latest_created_at: string | null;
+    }[];
+    recent: {
+      notification_id: string;
+      notification_type: string;
+      title: string;
+      status: string;
+      channel: string | null;
+      severity: string | null;
+      attempt_count: number;
+      next_attempt_at: string | null;
+      last_error: string | null;
+      created_at: string;
+      sent_at: string | null;
+    }[];
+    channels: {
+      channel: string;
+      configured_sources: number;
+      enabled_sources: number;
+      credentialed_sources: number;
+      ready_sources: number;
+    }[];
+  };
+}
+
+export async function getPipelineDiagnostics(limit = 50): Promise<PipelineDiagnostics> {
+  return (await api.get<PipelineDiagnostics>("/admin/system/diagnostics", {
+    params: { limit },
+  })).data;
+}
+
 export interface SchedulerJob {
   job_id: string;
   job_key: string;
