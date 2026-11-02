@@ -15,7 +15,7 @@ const workflowSteps = [
   },
   {
     title: "Destinazioni",
-    description: "Configura canali (email, webhook, Slack) e pause: sia gli eventi delle collection sia quelli delle regole vengono recapitati qui tramite il canale predefinito.",
+    description: "Configura le destinazioni e le pause. Le sottoscrizioni possono usare la destinazione predefinita oppure una destinazione specifica.",
   },
 ];
 
@@ -32,7 +32,7 @@ function AlertWorkflowGuide() {
         ))}
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-        Le sottoscrizioni alle collection condividono il canale predefinito configurato nella scheda Destinazioni: non è possibile assegnare fonti diverse per portafogli o universi singoli.
+        Ogni collection può usare la destinazione predefinita o una destinazione specifica configurata nella scheda Destinazioni.
       </Typography>
     </Stack>
   );

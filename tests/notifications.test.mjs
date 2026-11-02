@@ -27,6 +27,7 @@ test("collection listing preserves all collection types and category selections"
     collection_id: `collection-${index}`,
     collection_name: `Collection ${index}`,
     enabled_categories: index ? [] : ["DAILY_MOVER", "NEWS"],
+    notification_source_id: null,
   }));
   const api = service({
     get: async path => {
@@ -44,12 +45,13 @@ test("saving targets the selected collection and sends exactly its categories", 
       const api = service({
         put: async (path, payload) => {
           assert.equal(path, `/notification-preferences/collections/${collectionType}/collection-id`);
-          assert.deepEqual(Object.keys(payload), ["enabled_categories"]);
+          assert.deepEqual(Object.keys(payload), ["enabled_categories", "notification_source_id"]);
           assert.strictEqual(payload.enabled_categories, enabledCategories);
+          assert.strictEqual(payload.notification_source_id, "source-id");
           return { data: result };
         },
       });
-      assert.strictEqual(await api.updateCollectionIntelligence(collectionType, "collection-id", enabledCategories), result);
+      assert.strictEqual(await api.updateCollectionIntelligence(collectionType, "collection-id", enabledCategories, "source-id"), result);
     }
   }
 });
@@ -79,7 +81,7 @@ test("listing and saving failures propagate instead of reporting success", async
   });
   await assert.rejects(api.getMonitoringCollections(), error);
   await assert.rejects(api.updateNotificationDelivery({ paused: true, default_source_id: null }), error);
-  await assert.rejects(api.updateCollectionIntelligence("PORTFOLIO", "missing-id", []), error);
+  await assert.rejects(api.updateCollectionIntelligence("PORTFOLIO", "missing-id", [], null), error);
 });
 
 const collectionComponent = ts.transpileModule(
@@ -91,7 +93,7 @@ const collectionComponent = ts.transpileModule(
 
 function collectionSettings(saveCollection = async () => {}) {
   let data = { collections: ["PORTFOLIO", "WATCHLIST", "UNIVERSE"].map(collection_type => ({
-    collection_type, collection_id: "shared-id", collection_name: collection_type, enabled_categories: [],
+    collection_type, collection_id: "shared-id", collection_name: collection_type, enabled_categories: [], notification_source_id: null,
   })) };
   let drafts = {};
   let mutation;
@@ -116,13 +118,14 @@ function collectionSettings(saveCollection = async () => {}) {
         drafts = typeof update === "function" ? update(drafts) : update;
       }] };
       if (name === "@mui/material") return Object.fromEntries([
-        "Alert", "Box", "Button", "Checkbox", "CircularProgress", "FormControlLabel", "Stack", "Typography",
+        "Alert", "Box", "Button", "Checkbox", "CircularProgress", "FormControl", "FormControlLabel", "InputLabel", "MenuItem", "Select", "Stack", "Typography",
       ].map(component => [component, component]));
       if (name.startsWith("@mui/icons-material/")) return { __esModule: true, default: name };
       if (name === "../contexts/AuthProvider") return { useAuth: () => ({ user: { user_id: "owner" } }) };
       if (name === "../services/operationFeedback") return { notifyOperationError: () => {} };
       if (name === "../services/notifications") return {
         getMonitoringCollections: async () => data,
+        getNotificationPreferences: async () => ({ sources: [{ source_id: "source-1", source_name: "Telegram lavoro", channel: "TELEGRAM", enabled: true }] }),
         updateCollectionIntelligence: async (...args) => {
           requests.push(JSON.parse(JSON.stringify(args)));
           await saveCollection(...args);
@@ -131,7 +134,9 @@ function collectionSettings(saveCollection = async () => {}) {
       assert.equal(name, "@tanstack/react-query");
       return {
         useQueryClient: () => queryClient,
-        useQuery: () => ({ data, isSuccess: true }),
+        useQuery: options => options.queryKey[0] === "notification-preferences"
+          ? { data: { sources: [{ source_id: "source-1", source_name: "Telegram lavoro", channel: "TELEGRAM", enabled: true }] }, isSuccess: true }
+          : { data, isSuccess: true },
         useMutation: options => {
           mutation = options;
           return { isPending: pending, isError: failed, reset: () => { failed = false; },
@@ -165,6 +170,7 @@ function collectionSettings(saveCollection = async () => {}) {
     render, requests, complete: () => completion,
     button: () => render().find(node => node.type === "Button"),
     checkbox: (collection, category = 0) => render().filter(node => node.type === "Checkbox")[collection * 4 + category],
+    select: collection => render().filter(node => node.type === "Select")[collection],
     data: () => data,
   };
 }
@@ -191,7 +197,7 @@ test("one save persists all changed collections and leaves unchanged collections
   assert.ok(settings.render().filter(node => node.type === "Checkbox").every(node => node.props.disabled));
   await settings.complete();
   assert.deepEqual(settings.requests, [
-    ["PORTFOLIO", "shared-id", ["DAILY_MOVER"]], ["WATCHLIST", "shared-id", ["NEWS"]],
+    ["PORTFOLIO", "shared-id", ["DAILY_MOVER"], null], ["WATCHLIST", "shared-id", ["NEWS"], null],
   ]);
   assert.equal(settings.button().props.disabled, true);
   assert.equal(settings.checkbox(0).props.checked, true);
@@ -217,4 +223,15 @@ test("partial failures retain unsaved drafts and retry only remaining collection
   assert.deepEqual(settings.requests.map(request => request[0]), ["PORTFOLIO", "WATCHLIST", "WATCHLIST", "UNIVERSE"]);
   assert.equal(settings.button().props.disabled, true);
   assert.ok(!settings.render().some(node => node.type === "Alert"));
+});
+
+test("a collection can select and save its own notification destination", async () => {
+  const settings = collectionSettings();
+  assert.equal(settings.select(0).props.value, "");
+  settings.select(0).props.onChange({ target: { value: "source-1" } });
+  assert.equal(settings.select(0).props.value, "source-1");
+  settings.button().props.onClick();
+  await settings.complete();
+  assert.deepEqual(settings.requests, [["PORTFOLIO", "shared-id", [], "source-1"]]);
+  assert.equal(settings.data().collections[0].notification_source_id, "source-1");
 });

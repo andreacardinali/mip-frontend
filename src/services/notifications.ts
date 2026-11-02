@@ -20,10 +20,14 @@ export async function updateCollectionIntelligence(
   collectionType: CollectionType,
   collectionId: string,
   enabledCategories: IntelligenceCategory[],
+  notificationSourceId: string | null,
 ) {
   const response = await api.put<{ saved: boolean }>(
     `/notification-preferences/collections/${collectionType}/${collectionId}`,
-    { enabled_categories: enabledCategories },
+    {
+      enabled_categories: enabledCategories,
+      notification_source_id: notificationSourceId,
+    },
   );
   return response.data;
 }

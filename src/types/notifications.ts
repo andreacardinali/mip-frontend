@@ -20,6 +20,7 @@ export type MonitoringCollection = {
   collection_id: string;
   collection_name: string;
   enabled_categories: IntelligenceCategory[];
+  notification_source_id: string | null;
 };
 
 export type MonitoringCollectionsResponse = {
