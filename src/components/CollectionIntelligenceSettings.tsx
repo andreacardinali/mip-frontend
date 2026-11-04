@@ -21,6 +21,7 @@ const categories: { value: IntelligenceCategory; label: string }[] = [
   { value: "BREAKING_CATALYST", label: "Catalyst urgenti" },
   { value: "NEWS", label: "Notizie" },
   { value: "DAILY_PORTFOLIO_REPORT", label: "Riepilogo giornaliero" },
+  { value: "MARKET_SIGNAL", label: "Segnali di mercato" },
 ];
 const collectionLabels = {
   PORTFOLIO: "Portafoglio", WATCHLIST: "Watchlist", UNIVERSE: "Universo",

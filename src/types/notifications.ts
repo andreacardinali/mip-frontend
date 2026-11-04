@@ -15,7 +15,8 @@ export type IntelligenceCategory =
   | "UPCOMING_CATALYST"
   | "BREAKING_CATALYST"
   | "NEWS"
-  | "DAILY_PORTFOLIO_REPORT";
+  | "DAILY_PORTFOLIO_REPORT"
+  | "MARKET_SIGNAL";
 
 export type MonitoringCollection = {
   collection_type: CollectionType;
