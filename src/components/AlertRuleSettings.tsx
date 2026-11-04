@@ -10,7 +10,8 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import {
   Alert, Autocomplete, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions,
-  DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem,
+  DialogContent, DialogTitle, FormControl, FormControlLabel, FormGroup, FormHelperText,
+  FormLabel, IconButton, MenuItem,
   Stack, Switch, TextField, Tooltip, Typography,
 } from "@mui/material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +37,10 @@ const historyPageSize = 25;
 const lifecycleEvents = {
   CREATED: "Creato", CONFIRMED: "Confermato", DIRECTION_CHANGED: "Cambio direzione",
   CLOSED: "Chiuso", EXPIRED: "Scaduto",
+};
+const signalDirections: Record<string, string> = {
+  STRONG_BUY: "Acquisto forte", BUY: "Acquisto", NEUTRAL: "Neutrale",
+  SELL: "Vendita", STRONG_SELL: "Vendita forte",
 };
 const notificationStatuses: Record<string, string> = {
   PENDING: "In coda", PROCESSING: "In invio", RETRY: "Nuovo tentativo",
@@ -70,7 +75,7 @@ function emptyRule(): AlertRulePayload {
 
 const filters = [
   ["symbols", "Simboli da includere"], ["excluded_symbols", "Simboli da escludere"],
-  ["directions", "Direzioni"], ["verdicts", "Verdetti"],
+  ["verdicts", "Verdetti"],
   ["origins", "Origini"], ["strategy_codes", "Strategie di supporto"],
 ] as const;
 const thresholds = [
@@ -151,6 +156,11 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
     },
   });
   const symbolOptions = instruments.data?.symbols ?? [];
+  const directionOptions = Array.from(new Set([
+    ...Object.keys(signalDirections),
+    ...form.conditions.directions,
+    ...(rules.data?.flatMap(rule => rule.conditions.directions ?? []) ?? []),
+  ]));
 
   function edit(rule?: AlertRule) {
     const defaults = emptyRule();
@@ -424,6 +434,18 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
               {collections.isError && <Alert severity="error" action={
                 <IconButton aria-label="Riprova collezioni" onClick={() => void collections.refetch()}><RefreshIcon /></IconButton>
               }>Impossibile caricare le collezioni.</Alert>}
+              {!priceRule && <FormControl component="fieldset" fullWidth>
+                <FormLabel component="legend">Direzioni del segnale</FormLabel>
+                <FormGroup row>
+                  {directionOptions.map(direction => <FormControlLabel key={direction}
+                    label={signalDirections[direction] ?? direction}
+                    control={<Checkbox checked={form.conditions.directions.includes(direction)} disabled={busy}
+                      onChange={(_, checked) => condition("directions", checked
+                        ? [...new Set([...form.conditions.directions, direction])]
+                        : form.conditions.directions.filter(value => value !== direction))} />} />)}
+                </FormGroup>
+                <FormHelperText>Nessuna selezione include tutte le direzioni.</FormHelperText>
+              </FormControl>}
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField select fullWidth label="Severita" value={form.severity} disabled={busy}
                   onChange={event => setForm({ ...form, severity: event.target.value as AlertRulePayload["severity"] })}>
