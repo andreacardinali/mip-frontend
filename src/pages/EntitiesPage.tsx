@@ -12,6 +12,7 @@ import { analyzeScreenerContext, screenerAnalysisMutationKey } from "../services
 import type { EntityScope } from "../types/entity";
 import type { ScreenerOpportunity } from "../types/marketScreener";
 import { formatTimestamp as timestamp } from "../services/timestamps";
+import { directionLabel, strategyLabel, verdictLabel } from "../services/marketScreenerLabels";
 import { screenerOpportunityColumns, screenerOpportunityInitialState } from "../components/screenerOpportunityColumns";
 
 export default function EntitiesPage() {
@@ -194,13 +195,13 @@ export default function EntitiesPage() {
       {overview.opportunities.length === 0 ? <Typography color="text.secondary">Nessun segnale attivo.</Typography> : <Box sx={{ height: 340, width: "100%" }}><DataGrid rows={overview.opportunities} getRowId={row => row.opportunity_id} disableRowSelectionOnClick columns={screenerOpportunityColumns(openOpportunity)} onRowClick={({ row }) => openOpportunity(row)} initialState={screenerOpportunityInitialState} showToolbar slotProps={{ toolbar: { csvOptions: { fileName: "mip-entity-signals", utf8WithBom: true, escapeFormulas: true }, printOptions: { disableToolbarButton: true } } }} pageSizeOptions={[25, 50, 100]} /></Box>}
       {overview.opportunities.map(opportunity => <Accordion key={opportunity.opportunity_id}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`analysis-${opportunity.opportunity_id}`} id={`analysis-heading-${opportunity.opportunity_id}`}>
-          <Typography sx={{ overflowWrap: "anywhere" }}>Analisi {opportunity.symbol} | {opportunity.strategy_code ?? "N/D"} | {opportunity.direction}</Typography>
+          <Typography sx={{ overflowWrap: "anywhere" }}>Analisi {opportunity.symbol} | {strategyLabel(opportunity.strategy_code)} | {directionLabel(opportunity.direction)}</Typography>
         </AccordionSummary>
         <AccordionDetails id={`analysis-${opportunity.opportunity_id}`}>
           <Stack spacing={1}>
             <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(opportunity.last_analysis_at)}</Typography>
             <Typography variant="subtitle2">Analisi tecnica e quantitativa</Typography>
-            <Typography>Score tecnico: {opportunity.technical_score ?? "N/D"} | Score quantitativo: {opportunity.quant_score ?? "N/D"}</Typography>
+            <Typography>Punteggio tecnico: {opportunity.technical_score ?? "N/D"} | Punteggio quantitativo: {opportunity.quant_score ?? "N/D"}</Typography>
             <Typography>Prezzo di riferimento: {opportunity.reference_price ?? "N/D"} | Invalidazione: {opportunity.invalidation_price ?? "N/D"} | Target: {opportunity.target_price ?? "N/D"}</Typography>
             {(opportunity.signal_reasons ?? []).map((reason, index) => <Typography key={`${index}-${reason}`}>{reason}</Typography>)}
             <Box component="details">
@@ -208,7 +209,7 @@ export default function EntitiesPage() {
               <Box component="pre" sx={{ maxHeight: 300, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(opportunity.technical_evidence ?? {}, null, 2)}</Box>
             </Box>
             <Typography variant="subtitle2">Arricchimento AI</Typography>
-            <Typography>Verdetto: {opportunity.verdict ?? "N/D"} | Score AI: {opportunity.llm_score ?? "N/D"}</Typography>
+            <Typography>Valutazione AI: {verdictLabel(opportunity.verdict)} | Punteggio AI: {opportunity.llm_score ?? "N/D"}</Typography>
             <Typography sx={{ overflowWrap: "anywhere" }}>{opportunity.summary ?? "Nessun arricchimento AI disponibile."}</Typography>
           </Stack>
         </AccordionDetails>

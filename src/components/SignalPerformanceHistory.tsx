@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatTimestamp as date } from "../services/timestamps";
+import { directionLabel, strategyLabel } from "../services/marketScreenerLabels";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -54,10 +55,11 @@ export default function SignalPerformanceHistory({ open, onClose }: { open: bool
   const columns: GridColDef<ScreenerPerformance>[] = [
     { field: "symbol", headerName: "Strumento", width: 140,
       renderCell: ({ row }) => <Tooltip title={row.exchange ?? ""}><span>{row.symbol}</span></Tooltip> },
-    { field: "strategy_code", headerName: "Strategia", width: 150 },
+    { field: "strategy_code", headerName: "Strategia", width: 180,
+      renderCell: ({ row }) => strategyLabel(row.strategy_code) },
     { field: "timeframe", headerName: "Timeframe", width: 100 },
     { field: "direction", headerName: "Direzione", width: 110,
-      renderCell: ({ row }) => <Chip size="small" color={row.direction === "LONG" ? "success" : "error"} label={row.direction} /> },
+      renderCell: ({ row }) => <Chip size="small" color={row.direction === "LONG" ? "success" : "error"} label={directionLabel(row.direction)} /> },
     { field: "status", headerName: "Stato", width: 150,
       renderCell: ({ row }) => <Chip size="small" variant="outlined" label={row.status === "OPEN" ? "Aperto" : endLabels[row.end_reason ?? ""] ?? "Chiuso"} /> },
     { field: "entry_at", headerName: "Ingresso", width: 175, valueFormatter: (value) => date(value) },

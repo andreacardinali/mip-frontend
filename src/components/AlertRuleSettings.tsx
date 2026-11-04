@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatTimestamp } from "../services/timestamps";
+import { directionLabel, eventLabel, signalDirectionValues, strategyLabel, verdictLabel } from "../services/marketScreenerLabels";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -38,10 +39,6 @@ const lifecycleEvents = {
   CREATED: "Creato", CONFIRMED: "Confermato", DIRECTION_CHANGED: "Cambio direzione",
   CLOSED: "Chiuso", EXPIRED: "Scaduto",
 };
-const signalDirections: Record<string, string> = {
-  STRONG_BUY: "Acquisto forte", BUY: "Acquisto", NEUTRAL: "Neutrale",
-  SELL: "Vendita", STRONG_SELL: "Vendita forte",
-};
 const notificationStatuses: Record<string, string> = {
   PENDING: "In coda", PROCESSING: "In invio", RETRY: "Nuovo tentativo",
   SENT: "Inviata", FAILED: "Invio fallito",
@@ -75,11 +72,11 @@ function emptyRule(): AlertRulePayload {
 
 const filters = [
   ["symbols", "Simboli da includere"], ["excluded_symbols", "Simboli da escludere"],
-  ["verdicts", "Verdetti"],
+  ["verdicts", "Valutazione AI"],
   ["origins", "Origini"], ["strategy_codes", "Strategie di supporto"],
 ] as const;
 const thresholds = [
-  ["min_composite_score", "Score composito minimo", 0, 1, 0.01],
+  ["min_composite_score", "Punteggio complessivo minimo", 0, 1, 0.01],
   ["min_consensus_score", "Consenso minimo", 0, 1, 0.01],
   ["max_conflict_score", "Conflitto massimo", 0, 1, 0.01],
   ["min_strategy_count", "Numero minimo di strategie", 1, 2147483647, 1],
@@ -157,7 +154,7 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
   });
   const symbolOptions = instruments.data?.symbols ?? [];
   const directionOptions = Array.from(new Set([
-    ...Object.keys(signalDirections),
+    ...signalDirectionValues,
     ...form.conditions.directions,
     ...(rules.data?.flatMap(rule => rule.conditions.directions ?? []) ?? []),
   ]));
@@ -370,11 +367,12 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                     Riferimento: {formatTimestamp(payload.reference_at)}
                   </Typography>}
                 </> : <>
-                  <Typography variant="body2">{[payload.event_type, payload.direction, payload.verdict].filter(Boolean).join(" · ") || "-"}</Typography>
+                  <Typography variant="body2">{[eventLabel(payload.event_type), payload.direction ? directionLabel(payload.direction) : null,
+                    payload.verdict ? verdictLabel(payload.verdict) : null].filter(Boolean).join(" · ") || "-"}</Typography>
                   {type === "MARKET_SIGNAL" && <Typography variant="body2">
-                    Score: {formatNumber(payload.composite_score)} · Consenso: {formatNumber(payload.consensus_score)}
+                    Punteggio complessivo: {formatNumber(payload.composite_score)} · Consenso: {formatNumber(payload.consensus_score)}
                   </Typography>}
-                  {!!payload.strategy_codes?.length && <Typography variant="body2">Strategie: {payload.strategy_codes.join(", ")}</Typography>}
+                  {!!payload.strategy_codes?.length && <Typography variant="body2">Strategie: {payload.strategy_codes.map(strategyLabel).join(", ")}</Typography>}
                 </>}
                 {payload.observed_at && <Typography variant="body2" color="text.secondary">Osservato: {formatTimestamp(payload.observed_at)}</Typography>}
                 {event.sent_at && <Typography variant="body2" color="text.secondary">Inviata: {formatTimestamp(event.sent_at)}</Typography>}
@@ -438,7 +436,7 @@ export default function AlertRuleSettings({ context }: AlertRuleSettingsProps = 
                 <FormLabel component="legend">Direzioni del segnale</FormLabel>
                 <FormGroup row>
                   {directionOptions.map(direction => <FormControlLabel key={direction}
-                    label={signalDirections[direction] ?? direction}
+                    label={directionLabel(direction)}
                     control={<Checkbox checked={form.conditions.directions.includes(direction)} disabled={busy}
                       onChange={(_, checked) => condition("directions", checked
                         ? [...new Set([...form.conditions.directions, direction])]

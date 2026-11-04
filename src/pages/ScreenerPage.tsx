@@ -38,7 +38,8 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/
 import AlertRuleSettings from "../components/AlertRuleSettings";
 import SignalPerformanceHistory from "../components/SignalPerformanceHistory";
 import ScreenerRunLogDialog from "../components/ScreenerRunLogDialog";
-import { analysisDescription, screenerOpportunityColumns, screenerOpportunityInitialState, score, matchLabel, matchColor, directionColor, originColor, verdictColor, verdictLabel, scoreColor } from "../components/screenerOpportunityColumns";
+import { analysisDescription, screenerOpportunityColumns, screenerOpportunityInitialState, score, matchLabel, matchColor, directionColor, originColor, verdictColor, scoreColor } from "../components/screenerOpportunityColumns";
+import { consensusLabel, directionLabel, eventLabel, originLabel, signalTypeLabel, statusLabel, strategyLabel, trendLabel, verdictLabel } from "../services/marketScreenerLabels";
 
 import {
   analyzeScreenerContext,
@@ -267,13 +268,13 @@ export default function ScreenerPage() {
       valueGetter: (_, row) => (row.current ?? row.previous)?.signal_timeframe ?? "-" },
     { field: "previous", headerName: "Precedente", minWidth: 280, flex: 1,
       valueGetter: (_, row) => row.previous
-        ? `${row.previous.signal_type ?? "-"} / ${row.previous.strategy_code ?? "-"} / ${row.previous.direction} / ${row.previous.consensus_direction} / ${row.previous.verdict ?? "-"}` : "-" },
+        ? `${signalTypeLabel(row.previous.signal_type)} / ${strategyLabel(row.previous.strategy_code)} / ${directionLabel(row.previous.direction)} / ${consensusLabel(row.previous.consensus_direction)} / ${verdictLabel(row.previous.verdict)}` : "-" },
     { field: "current", headerName: "Attuale", minWidth: 280, flex: 1,
       valueGetter: (_, row) => row.current
-        ? `${row.current.signal_type ?? "-"} / ${row.current.strategy_code ?? "-"} / ${row.current.direction} / ${row.current.consensus_direction} / ${row.current.verdict ?? "-"}` : "-" },
+        ? `${signalTypeLabel(row.current.signal_type)} / ${strategyLabel(row.current.strategy_code)} / ${directionLabel(row.current.direction)} / ${consensusLabel(row.current.consensus_direction)} / ${verdictLabel(row.current.verdict)}` : "-" },
     { field: "strategies", headerName: "Strategie (supporto; opposizione)", minWidth: 270, flex: 1,
       valueGetter: (_, row) => [row.previous, row.current].map(item => item
-        ? `${(item.supporting_strategies ?? []).join(", ") || "-"}; ${(item.opposing_strategies ?? []).join(", ") || "-"}` : "-").join(" → ") },
+        ? `${(item.supporting_strategies ?? []).map(strategyLabel).join(", ") || "-"}; ${(item.opposing_strategies ?? []).map(strategyLabel).join(", ") || "-"}` : "-").join(" → ") },
   ];
 
   const allRows = contextSelection && !selectedContext ? [] : opportunitiesQuery.data ?? [];
@@ -490,8 +491,8 @@ export default function ScreenerPage() {
             onChange={(event) => setOrigin(event.target.value)}
           >
             <MenuItem value="">Tutte</MenuItem>
-            <MenuItem value="CORE">Core</MenuItem>
-            <MenuItem value="DISCOVERY">Discovery</MenuItem>
+            <MenuItem value="CORE">Universo monitorato</MenuItem>
+            <MenuItem value="DISCOVERY">Scoperta</MenuItem>
           </TextField>
           <TextField
             select
@@ -502,21 +503,21 @@ export default function ScreenerPage() {
             onChange={(event) => setDirection(event.target.value)}
           >
             <MenuItem value="">Tutte</MenuItem>
-            <MenuItem value="LONG">Long</MenuItem>
-            <MenuItem value="SHORT">Short</MenuItem>
+            <MenuItem value="LONG">Rialzista</MenuItem>
+            <MenuItem value="SHORT">Ribassista</MenuItem>
           </TextField>
           <TextField
             select
             size="small"
-            label="Verdetto"
+            label="Valutazione AI"
             value={verdict}
             sx={{ minWidth: 140 }}
             onChange={(event) => setVerdict(event.target.value)}
           >
             <MenuItem value="">Tutti</MenuItem>
-            <MenuItem value="CONFIRM">Confirm</MenuItem>
-            <MenuItem value="REVIEW">Review</MenuItem>
-            <MenuItem value="REJECT">Reject</MenuItem>
+            <MenuItem value="CONFIRM">Confermato dall'AI</MenuItem>
+            <MenuItem value="REVIEW">Da approfondire</MenuItem>
+            <MenuItem value="REJECT">Non confermato dall'AI</MenuItem>
           </TextField>
           <TextField
             select
@@ -527,9 +528,9 @@ export default function ScreenerPage() {
             onChange={(event) => setConsensusDirection(event.target.value as ConsensusDirection | "", )}
           >
             <MenuItem value="">Tutti</MenuItem>
-            <MenuItem value="LONG">Long</MenuItem>
-            <MenuItem value="SHORT">Short</MenuItem>
-            <MenuItem value="CONFLICT">Conflitto</MenuItem>
+            <MenuItem value="LONG">Rialzista</MenuItem>
+            <MenuItem value="SHORT">Ribassista</MenuItem>
+            <MenuItem value="CONFLICT">In conflitto</MenuItem>
             <MenuItem value="NEUTRAL">Neutrale</MenuItem>
           </TextField>
           <TextField
@@ -553,7 +554,7 @@ export default function ScreenerPage() {
           <TextField
             size="small"
             type="number"
-            label="Score minimo"
+            label="Punteggio minimo"
             value={minimumScore}
             sx={{ width: 135 }}
             slotProps={{ htmlInput: { min: 0, max: 100, step: 5 } }}
@@ -678,15 +679,15 @@ export default function ScreenerPage() {
                 <Tooltip describeChild title={analysisDescription("source_currency_code", selected.source_currency_code)}><Chip tabIndex={0} label={selected.source_currency_code ?? "N/D"} /></Tooltip>
                 <Tooltip describeChild title={analysisDescription("direction", selected.direction)}><Chip tabIndex={0}
                   color={directionColor(selected.direction)}
-                  label={selected.direction}
+                  label={directionLabel(selected.direction)}
                 /></Tooltip>
                 <Tooltip describeChild title={analysisDescription("origin", selected.origin)}><Chip tabIndex={0}
                   color={originColor(selected.origin)}
-                  label={selected.origin}
+                  label={originLabel(selected.origin)}
                 /></Tooltip>
                 <Tooltip describeChild title={analysisDescription("verdict", selected.verdict)}><Chip tabIndex={0}
                   color={verdictColor(selected.verdict)}
-                  label={selected.verdict ?? "N/D"}
+                  label={verdictLabel(selected.verdict)}
                 /></Tooltip>
                 <Tooltip describeChild title={analysisDescription("portfolio_match_type", selected.portfolio_match_type)}><Chip tabIndex={0}
                   color={matchColor(selected.portfolio_match_type)}
@@ -698,8 +699,8 @@ export default function ScreenerPage() {
                 <Typography variant="h6" sx={{ mb: 1 }}>Valutazione AI</Typography>
                 <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mb: 2 }}>
                   <Tooltip describeChild title={analysisDescription("verdict", selected.verdict)}><Chip tabIndex={0} label={verdictLabel(selected.verdict)} color={verdictColor(selected.verdict)} /></Tooltip>
-                  <Tooltip describeChild title={analysisDescription("llm_score", selected.llm_score)}><Chip tabIndex={0} label={`Score AI: ${score(selected.llm_score)}`} /></Tooltip>
-                  <Tooltip describeChild title={analysisDescription("composite_score", selected.composite_score)}><Chip tabIndex={0} label={`Score totale: ${score(selected.composite_score)}`} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("llm_score", selected.llm_score)}><Chip tabIndex={0} label={`Punteggio AI: ${score(selected.llm_score)}`} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("composite_score", selected.composite_score)}><Chip tabIndex={0} label={`Punteggio totale: ${score(selected.composite_score)}`} /></Tooltip>
                 </Stack>
                 {selected.summary ? <Typography sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{selected.summary}</Typography>
                   : <Alert severity="info">{selected.llm_score === null
@@ -711,11 +712,11 @@ export default function ScreenerPage() {
               <Box>
                 <Typography variant="h6" sx={{ mb: 1 }}>Segnale tecnico</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mb: 2 }}>
-                  <Tooltip describeChild title={analysisDescription("strategy_code", selected.strategy_code)}><Chip tabIndex={0} color="primary" label={selected.strategy_code ?? "Strategia N/D"} /></Tooltip>
-                  <Tooltip describeChild title={analysisDescription("signal_type", selected.signal_type)}><Chip tabIndex={0} color={selected.signal_type === "BUY" || selected.signal_type === "STRONG_BUY" ? "success" : selected.signal_type === "SELL" || selected.signal_type === "STRONG_SELL" ? "error" : "default"} label={selected.signal_type ?? "Tipo N/D"} /></Tooltip>
-                  <Tooltip describeChild title={analysisDescription("signal_trend", selected.signal_trend)}><Chip tabIndex={0} label={`Trend: ${selected.signal_trend ?? "N/D"}`} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("strategy_code", selected.strategy_code)}><Chip tabIndex={0} color="primary" label={strategyLabel(selected.strategy_code)} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("signal_type", selected.signal_type)}><Chip tabIndex={0} color={selected.signal_type === "BUY" || selected.signal_type === "STRONG_BUY" ? "success" : selected.signal_type === "SELL" || selected.signal_type === "STRONG_SELL" ? "error" : "default"} label={signalTypeLabel(selected.signal_type)} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("signal_trend", selected.signal_trend)}><Chip tabIndex={0} label={`Trend: ${trendLabel(selected.signal_trend)}`} /></Tooltip>
                   <Tooltip describeChild title={analysisDescription("signal_timeframe", selected.signal_timeframe)}><Chip tabIndex={0} label={`Timeframe: ${selected.signal_timeframe ?? "N/D"}`} /></Tooltip>
-                  <Tooltip describeChild title={analysisDescription("signal_confidence", selected.signal_confidence)}><Chip tabIndex={0} label={`Confidence: ${selected.signal_confidence === null ? "N/D" : `${(Number(selected.signal_confidence) * 100).toFixed(1)}%`}`} /></Tooltip>
+                  <Tooltip describeChild title={analysisDescription("signal_confidence", selected.signal_confidence)}><Chip tabIndex={0} label={`Affidabilità: ${selected.signal_confidence === null ? "N/D" : `${(Number(selected.signal_confidence) * 100).toFixed(1)}%`}`} /></Tooltip>
                 </Stack>
                 <Typography>
                   Prezzo riferimento: {selected.reference_price ?? "N/D"} · Invalidazione: {selected.invalidation_price ?? "N/D"} · Target: {selected.target_price ?? "N/D"}
@@ -731,13 +732,13 @@ export default function ScreenerPage() {
                 </Box>
               </Box>
               <Tooltip describeChild title={[analysisDescription("attention_score", selected.attention_score), analysisDescription("technical_score", selected.technical_score), analysisDescription("quant_score", selected.quant_score)].join(" ")}><Typography tabIndex={0} sx={{ mt: 2 }}>
-                Attention {score(selected.attention_score)} · Technical {score(selected.technical_score)} · Quant {score(selected.quant_score)}
+                Attenzione {score(selected.attention_score)} · Tecnica {score(selected.technical_score)} · Quantitativa {score(selected.quant_score)}
               </Typography></Tooltip>
               <Typography variant="h6" sx={{ mt: 2 }}>Consenso strategie</Typography>
-              <Tooltip describeChild title={analysisDescription("consensus_direction", selected.consensus_direction)}><Typography tabIndex={0}>Direzione: {selected.consensus_direction} · Long: {selected.bullish_strategy_count} · Short: {selected.bearish_strategy_count}</Typography></Tooltip>
+              <Tooltip describeChild title={analysisDescription("consensus_direction", selected.consensus_direction)}><Typography tabIndex={0}>Direzione: {consensusLabel(selected.consensus_direction)} · Rialziste: {selected.bullish_strategy_count} · Ribassiste: {selected.bearish_strategy_count}</Typography></Tooltip>
               <Typography>Consenso: {score(selected.consensus_score)} · Conflitto: {score(selected.conflict_score)}</Typography>
-              <Typography>Favorevoli: {selected.supporting_strategies.join(", ") || "N/D"}</Typography>
-              <Typography>Contrarie: {selected.opposing_strategies.join(", ") || "N/D"}</Typography>
+              <Typography>Favorevoli: {selected.supporting_strategies.map(strategyLabel).join(", ") || "N/D"}</Typography>
+              <Typography>Contrarie: {selected.opposing_strategies.map(strategyLabel).join(", ") || "N/D"}</Typography>
               <Box component="details" sx={{ mt: 2 }}>
                 <Typography component="summary" sx={{ cursor: "pointer" }}>Dati completi dell'analisi</Typography>
                 <Box component="pre" sx={{ p: 2, maxHeight: 360, overflow: "auto", bgcolor: "action.hover", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
@@ -777,13 +778,15 @@ export default function ScreenerPage() {
                       columns={[
                         { field: "observed_at", headerName: "Data", width: 180,
                           renderCell: ({ row }) => formatTimestamp(row.observed_at) },
-                        { field: "strategy_code", headerName: "Strategia", width: 150 },
+                        { field: "strategy_code", headerName: "Strategia", width: 180,
+                          renderCell: ({ row }) => strategyLabel(row.strategy_code) },
                         { field: "timeframe", headerName: "Timeframe", width: 100 },
-                        { field: "event_type", headerName: "Evento", width: 190 },
+                        { field: "event_type", headerName: "Evento", width: 190,
+                          renderCell: ({ row }) => eventLabel(row.event_type) },
                         { field: "new_status", headerName: "Stato", width: 220,
-                          renderCell: ({ row }) => `${row.previous_status ?? "N/D"} -> ${row.new_status}` },
+                          renderCell: ({ row }) => `${statusLabel(row.previous_status)} -> ${statusLabel(row.new_status)}` },
                         { field: "new_direction", headerName: "Direzione", width: 190,
-                          renderCell: ({ row }) => `${row.previous_direction ?? "N/D"} -> ${row.new_direction}` },
+                          renderCell: ({ row }) => `${directionLabel(row.previous_direction)} -> ${directionLabel(row.new_direction)}` },
                         { field: "reason", headerName: "Motivo", minWidth: 220, flex: 1 },
                       ]}
                       initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
@@ -907,11 +910,14 @@ export default function ScreenerPage() {
                     { field: "ranking_change", headerName: "Δ", width: 70,
                       renderCell: ({ row }) => row.ranking_change === null ? "Nuova" : row.ranking_change > 0 ? `+${row.ranking_change}` : `${row.ranking_change}` },
                     { field: "symbol", headerName: "Simbolo", width: 100 },
-                    { field: "direction", headerName: "Direzione", width: 105 },
-                    { field: "origin", headerName: "Origine", width: 105 },
-                    { field: "composite_score", headerName: "Composite", width: 110,
+                    { field: "direction", headerName: "Direzione", width: 120,
+                      renderCell: ({ row }) => directionLabel(row.direction) },
+                    { field: "origin", headerName: "Origine", width: 170,
+                      renderCell: ({ row }) => originLabel(row.origin) },
+                    { field: "composite_score", headerName: "Punteggio complessivo", width: 170,
                       renderCell: ({ row }) => <Typography sx={{ color: scoreColor(row.composite_score), fontWeight: 700 }}>{score(row.composite_score)}</Typography> },
-                    { field: "verdict", headerName: "Verdetto", width: 110 },
+                    { field: "verdict", headerName: "Valutazione AI", width: 180,
+                      renderCell: ({ row }) => verdictLabel(row.verdict) },
                   ]}
                   pageSizeOptions={[25, 50, 100]}
                   disableRowSelectionOnClick
