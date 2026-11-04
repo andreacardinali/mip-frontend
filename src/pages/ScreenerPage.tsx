@@ -612,6 +612,10 @@ export default function ScreenerPage() {
         )}
       </Stack>
 
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Copertura AI selettiva: il prefilter esclude i segnali SWING_EXIT e, tra gli altri, ordina per score quantitativo (soglia attuale: 0) e considera fino a 25 strumenti per scansione, mantenendo le strategie degli strumenti selezionati. L'arricchimento elabora fino a 25 segnali per esecuzione. Un punteggio AI assente può indicare un segnale non selezionato oppure ancora in coda, non necessariamente un errore.
+      </Alert>
+
       {resultView === "ai" && !opportunitiesQuery.isFetching && !opportunitiesQuery.isError && !rows.length && (
         <Alert severity="info" sx={{ mb: 2 }}>Nessuna analisi AI disponibile per i segnali e i filtri selezionati.</Alert>
       )}
@@ -705,6 +709,7 @@ export default function ScreenerPage() {
                 <Typography variant="h6" sx={{ mb: 1 }}>Valutazione AI</Typography>
                 <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mb: 2 }}>
                   <Tooltip describeChild title={analysisDescription("verdict", selected.verdict)}><Chip tabIndex={0} label={verdictLabel(selected.verdict)} color={verdictColor(selected.verdict)} /></Tooltip>
+                  <Chip label={`Idoneità AI: ${selected.llm_eligible === true ? "Selezionato" : selected.llm_eligible === false ? "Escluso" : "Non disponibile"}`} color={selected.llm_eligible === true ? "success" : selected.llm_eligible === false ? "warning" : "default"} />
                   <Tooltip describeChild title={analysisDescription("llm_score", selected.llm_score)}><Chip tabIndex={0} label={`Punteggio AI: ${score(selected.llm_score)}`} /></Tooltip>
                   <Tooltip describeChild title={analysisDescription("composite_score", selected.composite_score)}><Chip tabIndex={0} label={`Punteggio totale: ${score(selected.composite_score)}`} /></Tooltip>
                 </Stack>
