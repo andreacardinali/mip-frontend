@@ -69,7 +69,11 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
   const [busySourceId, setBusySourceId] = useState<string | null>(null);
-  const [delivery, setDelivery] = useState<NotificationDeliveryPreferences>({ paused: false, default_source_id: null });
+  const [delivery, setDelivery] = useState<NotificationDeliveryPreferences>({
+    paused: false,
+    default_source_id: null,
+    daily_portfolio_report_time: "21:00",
+  });
   const [savedDelivery, setSavedDelivery] = useState(delivery);
   const [sources, setSources] = useState<NotificationSource[]>([]);
   const [channels, setChannels] = useState<SupportedNotificationChannel[]>([]);
@@ -118,7 +122,8 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
   }, [view]);
 
   const notificationsChanged = delivery.paused !== savedDelivery.paused
-    || delivery.default_source_id !== savedDelivery.default_source_id;
+    || delivery.default_source_id !== savedDelivery.default_source_id
+    || delivery.daily_portfolio_report_time !== savedDelivery.daily_portfolio_report_time;
   const accountChanged = reportingCurrency !== savedReportingCurrency || displayTimezone !== savedTimezone;
   const enabledSources = sources.filter((source) => source.enabled);
   const selectedChannel = channels.find(
@@ -327,6 +332,18 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
                     {enabledSources.map(source => <MenuItem key={source.source_id} value={source.source_id}>{source.source_name} ({source.channel})</MenuItem>)}
                   </Select>
                 </FormControl>
+                <TextField
+                  type="time"
+                  label="Orario riepilogo portfolio"
+                  value={delivery.daily_portfolio_report_time.slice(0, 5)}
+                  disabled={isSavingNotifications}
+                  InputLabelProps={{ shrink: true }}
+                  helperText={`Fuso orario account: ${displayTimezone}`}
+                  onChange={event => setDelivery(current => ({
+                    ...current,
+                    daily_portfolio_report_time: event.target.value,
+                  }))}
+                />
               </Stack>
             )}
             <Box sx={{ display: "flex", justifyContent: "flex-end" }}>

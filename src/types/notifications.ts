@@ -65,6 +65,7 @@ export type NotificationPreferencesResponse = {
 export type NotificationDeliveryPreferences = {
   paused: boolean;
   default_source_id: string | null;
+  daily_portfolio_report_time: string;
 };
 
 export type UpdateNotificationPreference = Pick<
