@@ -852,6 +852,21 @@ export default function ScreenerPage() {
           )}
         </DialogContent>
         <DialogActions>
+          <Button
+            variant="contained"
+            startIcon={<PlayArrowIcon />}
+            disabled={!selected?.source_instrument_id || analysisRunning}
+            onClick={() => {
+              if (selected?.source_instrument_id && !analysisRunning) {
+                analysis.mutate({
+                  context_type: "INSTRUMENT",
+                  context_id: selected.source_instrument_id,
+                });
+              }
+            }}
+          >
+            {analysisRunning ? "Analisi in corso..." : "Analizza titolo"}
+          </Button>
           <Button onClick={() => setSelectedId(null)}>Chiudi</Button>
         </DialogActions>
       </Dialog>
