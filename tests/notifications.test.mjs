@@ -169,7 +169,9 @@ function collectionSettings(saveCollection = async () => {}) {
   return {
     render, requests, complete: () => completion,
     button: () => render().find(node => node.type === "Button"),
-    checkbox: (collection, category = 0) => render().filter(node => node.type === "Checkbox")[collection * 4 + category],
+    checkbox: (collection, category = 0) => render().filter(node => node.type === "Checkbox")[
+      collection === 0 ? category : 5 + (collection - 1) * 4 + category
+    ],
     select: collection => render().filter(node => node.type === "Select")[collection],
     data: () => data,
   };
@@ -234,4 +236,14 @@ test("a collection can select and save its own notification destination", async 
   await settings.complete();
   assert.deepEqual(settings.requests, [["PORTFOLIO", "shared-id", [], "source-1"]]);
   assert.equal(settings.data().collections[0].notification_source_id, "source-1");
+});
+
+test("daily portfolio report is portfolio-only and saves its own category", async () => {
+  const settings = collectionSettings();
+  assert.equal(settings.render().filter(node => node.type === "Checkbox").length, 13);
+  settings.checkbox(0, 4).props.onChange(null, true);
+  assert.equal(settings.checkbox(0, 4).props.checked, true);
+  settings.button().props.onClick();
+  await settings.complete();
+  assert.deepEqual(settings.requests, [["PORTFOLIO", "shared-id", ["DAILY_PORTFOLIO_REPORT"], null]]);
 });

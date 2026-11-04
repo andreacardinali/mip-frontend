@@ -6,14 +6,16 @@ export type NotificationType =
   | "FIXED_PRICE"
   | "PERCENT_MOVE"
   | "SIGNAL_CHANGE"
-  | "SCREENER_SUMMARY";
+  | "SCREENER_SUMMARY"
+  | "DAILY_PORTFOLIO_REPORT";
 
 export type CollectionType = "PORTFOLIO" | "WATCHLIST" | "UNIVERSE";
 export type IntelligenceCategory =
   | "DAILY_MOVER"
   | "UPCOMING_CATALYST"
   | "BREAKING_CATALYST"
-  | "NEWS";
+  | "NEWS"
+  | "DAILY_PORTFOLIO_REPORT";
 
 export type MonitoringCollection = {
   collection_type: CollectionType;

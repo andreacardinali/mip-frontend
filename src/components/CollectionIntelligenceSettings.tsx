@@ -20,6 +20,7 @@ const categories: { value: IntelligenceCategory; label: string }[] = [
   { value: "UPCOMING_CATALYST", label: "Catalyst in arrivo" },
   { value: "BREAKING_CATALYST", label: "Catalyst urgenti" },
   { value: "NEWS", label: "Notizie" },
+  { value: "DAILY_PORTFOLIO_REPORT", label: "Riepilogo giornaliero" },
 ];
 const collectionLabels = {
   PORTFOLIO: "Portafoglio", WATCHLIST: "Watchlist", UNIVERSE: "Universo",
@@ -42,7 +43,8 @@ function CollectionRow({ collection, selected, disabled, sources, onChange }: {
         </Box>
       </Stack>
       <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", columnGap: 2 }}>
-        {categories.map(category => (
+        {categories.filter(category => collection.collection_type === "PORTFOLIO" ||
+          category.value !== "DAILY_PORTFOLIO_REPORT").map(category => (
           <FormControlLabel key={category.value} label={category.label}
             control={<Checkbox checked={selected.enabled_categories.includes(category.value)} disabled={disabled}
               onChange={(_, checked) => onChange({ ...selected, enabled_categories: checked
