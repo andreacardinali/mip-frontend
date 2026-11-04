@@ -337,7 +337,7 @@ export default function SettingsPage({ view = "account" }: { view?: "account" | 
                   label="Orario riepilogo portfolio"
                   value={delivery.daily_portfolio_report_time.slice(0, 5)}
                   disabled={isSavingNotifications}
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{ inputLabel: { shrink: true } }}
                   helperText={`Fuso orario account: ${displayTimezone}`}
                   onChange={event => setDelivery(current => ({
                     ...current,
