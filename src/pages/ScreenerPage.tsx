@@ -141,6 +141,12 @@ export default function ScreenerPage() {
     refetchInterval: query => analysisPending || query.state.data?.status === "RUNNING" || query.state.data?.status === "QUEUED" ? 2_000 : 10_000,
   });
   const analysisRunning = analysisPending || progressQuery.data?.status === "RUNNING" || progressQuery.data?.status === "QUEUED";
+  const analysisScopeType = directScope ?? selectedContext?.context_type;
+  const analysisScopeLabel = analysisScopeType === "ENTITY" ? "dell'entità"
+    : analysisScopeType === "INSTRUMENT" ? "del titolo"
+      : analysisScopeType === "WATCHLIST" ? "della watchlist"
+        : analysisScopeType === "PORTFOLIO" ? "del portafoglio"
+          : analysisScopeType === "UNIVERSE" ? "dell'universo" : "degli strumenti selezionati";
   const progress = progressQuery.data?.status === "RUNNING" ? progressQuery.data.phase_results.progress : undefined;
   const progressPercent = progress && progress.total > 0
     ? Math.min(100, Math.max(0, progress.completed / progress.total * 100)) : undefined;
@@ -446,7 +452,7 @@ export default function ScreenerPage() {
             onClick={() => { if (selectedContext && !analysisRunning) analysis.mutate({
               context_type: selectedContext.context_type, context_id: selectedContext.context_id,
             }); }}>
-            {analysisRunning ? "Analisi in corso..." : directScope === "ENTITY" ? "Analizza entita" : directScope === "INSTRUMENT" ? "Analizza strumento" : "Analizza"}
+            {analysisRunning ? "Aggiornamento analisi in corso..." : `Aggiorna analisi ${analysisScopeLabel}`}
           </Button>
           <Tooltip title="Filtri avanzati">
             <IconButton aria-label="Filtri avanzati" aria-expanded={advancedOpen}
@@ -865,7 +871,7 @@ export default function ScreenerPage() {
               }
             }}
           >
-            {analysisRunning ? "Analisi in corso..." : "Analizza titolo"}
+            {analysisRunning ? "Aggiornamento analisi in corso..." : "Aggiorna analisi del titolo"}
           </Button>
           <Button onClick={() => setSelectedId(null)}>Chiudi</Button>
         </DialogActions>
