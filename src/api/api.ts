@@ -45,8 +45,8 @@ api.interceptors.response.use(
         trackJob(data.job_run_id, decodeURIComponent(jobMatch[1]));
         notifyOperation(`${label}: esecuzione richiesta.`);
       } else if (response.config.url === "/market-data/prices/refresh" && !data?.job_run_id) {
-        notifyOperation(data?.enqueued_count > 0
-          ? `${label}: ${data.enqueued_count} strumenti accodati.`
+        notifyOperation(data?.candidates_enqueued > 0
+          ? `${label}: ${data.candidates_enqueued} strumenti accodati globalmente.`
           : `${label}: nessun nuovo aggiornamento da accodare.`, "info");
       } else {
         const status = typeof data?.status === "string" ? data.status.toUpperCase() : "SUCCESS";

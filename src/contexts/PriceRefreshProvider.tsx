@@ -62,13 +62,13 @@ export function PriceRefreshProvider({ children }: { children: ReactNode }) {
     refreshInProgress.current = true;
     try {
       const response = await api.post<ExecutionRequest>("/market-data/prices/refresh", undefined, { silentFeedback });
-      const result = await waitForJobRun<{ enqueued_count: number }>(response.data.job_run_id, { label: "Accodamento aggiornamento prezzi" });
+      const result = await waitForJobRun<{ candidates_enqueued: number; claimed: number }>(response.data.job_run_id, { label: "Aggiornamento prezzi globale" });
       if (!silentFeedback) {
-        notifyOperation(result.enqueued_count > 0
-          ? `Aggiornamento prezzi: ${result.enqueued_count} strumenti accodati.`
+        notifyOperation(result.candidates_enqueued > 0
+          ? `Aggiornamento prezzi globale: ${result.candidates_enqueued} strumenti accodati.`
           : "Aggiornamento prezzi: nessun nuovo aggiornamento da accodare.", "info");
       }
-      if (result.enqueued_count > 0) {
+      if (result.candidates_enqueued > 0 || result.claimed > 0) {
         pollingDeadline.current = Date.now() + 180_000;
         setWaitingForPrices(true);
       }
