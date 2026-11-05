@@ -180,7 +180,7 @@ export default function EntitiesPage() {
         { field: "watchlist_names", headerName: "Watchlist (entita)", minWidth: 180, flex: 1 },
         { field: "currency_code", headerName: "Valuta", width: 95 }, { field: "instrument_type", headerName: "Tipo", width: 130 },
         { field: "last_price", headerName: "Ultimo prezzo", width: 145 },
-        { field: "price_as_of", headerName: "Timestamp prezzo", width: 210, valueFormatter: value => timestamp(value) },
+        { field: "price_as_of", headerName: "Ultimo aggiornamento prezzo", width: 220, valueFormatter: value => timestamp(value) },
         { field: "data_source", headerName: "Fonte", width: 150 },
       ]} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50, 100]} /></Box>
       <Typography variant="h6">Appartenenze</Typography>
@@ -199,7 +199,12 @@ export default function EntitiesPage() {
         </AccordionSummary>
         <AccordionDetails id={`analysis-${opportunity.opportunity_id}`}>
           <Stack spacing={1}>
-            <Typography variant="caption" color="text.secondary">Ultima analisi: {timestamp(opportunity.last_analysis_at)}</Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, columnGap: 3, flexWrap: "wrap" }}>
+              <Typography variant="caption" color="text.secondary">Ultimo aggiornamento prezzo: {timestamp(opportunity.price_as_of)}</Typography>
+              <Typography variant="caption" color="text.secondary">Ultimo calcolo indicatori: {timestamp(opportunity.last_analysis_at)}</Typography>
+              <Typography variant="caption" color="text.secondary">Ultimo segnale: {timestamp(opportunity.signal_observed_at)}</Typography>
+              <Typography variant="caption" color="text.secondary">Ultima analisi AI: {timestamp(opportunity.last_llm_analysis_at)}</Typography>
+            </Stack>
             <Typography variant="subtitle2">Analisi tecnica e quantitativa</Typography>
             <Typography>Punteggio tecnico: {opportunity.technical_score ?? "N/D"} | Punteggio quantitativo: {opportunity.quant_score ?? "N/D"}</Typography>
             <Typography>Prezzo di riferimento: {opportunity.reference_price ?? "N/D"} | Invalidazione: {opportunity.invalidation_price ?? "N/D"} | Target: {opportunity.target_price ?? "N/D"}</Typography>

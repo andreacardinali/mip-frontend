@@ -127,6 +127,22 @@ export function analysisDescription(field: string, value: string | number | null
   return descriptions[field] ?? `Codice ${String(value)}: descrizione non disponibile.`;
 }
 
+function timestampColumn(
+  field: "price_as_of" | "last_analysis_at" | "signal_observed_at" | "last_llm_analysis_at",
+  headerName: string,
+  description: string,
+): GridColDef<ScreenerOpportunity> {
+  return {
+    field, headerName, width: 195, type: "dateTime",
+    renderHeader: () => <Tooltip describeChild title={description}><Typography tabIndex={0} variant="body2" sx={{ fontWeight: 600 }}>{headerName}</Typography></Tooltip>,
+    valueGetter: value => value ? new Date(value) : null,
+    valueFormatter: (value: Date | null) => value ? formatTimestamp(value) : "Non registrata",
+    renderCell: ({ row }) => <Tooltip describeChild title={row[field] ? description : `${description} Nessun dato registrato.`}>
+      <Typography tabIndex={0} variant="body2" sx={{ alignSelf: "center" }}>{row[field] ? formatTimestamp(row[field]) : "Non registrata"}</Typography>
+    </Tooltip>,
+  };
+}
+
 export function screenerOpportunityColumns(
   onOpen: (row: ScreenerOpportunity) => void,
   newEntries: ReadonlySet<string> = new Set(),
@@ -146,15 +162,10 @@ export function screenerOpportunityColumns(
         {newEntries.has(`${row.source_instrument_id}:${row.signal_timeframe ?? ""}:${row.signal_id}`) &&
           <Tooltip title="Nuova opportunità nell'ultima scansione completa"><FiberNewIcon color="success" fontSize="small" aria-label="Nuova opportunità" /></Tooltip>}
       </Stack> },
-    { field: "last_analysis_at", headerName: "Ultima analisi", width: 185, type: "dateTime",
-      renderHeader: () => <Tooltip describeChild title="Ultima scansione completata che ha effettivamente valutato questo strumento, anche senza nuovi segnali. Non indica l'ultimo tentativo o l'aggiornamento dei prezzi."><Typography tabIndex={0} variant="body2" sx={{ fontWeight: 600 }}>Ultima analisi</Typography></Tooltip>,
-      valueGetter: value => value ? new Date(value) : null,
-      valueFormatter: (value: Date | null) => value ? formatTimestamp(value) : "Non registrata",
-      renderCell: ({ row }) => <Tooltip describeChild title={row.last_analysis_at
-        ? "Ultima valutazione tecnica completata dello strumento. L'esito dell'ultimo run del contesto e' riportato sopra la tabella."
-        : "Nessuna valutazione tecnica completata registrata per questo strumento. Non indica un errore di caricamento; l'ultimo run potrebbe averlo escluso o non averlo valutato."}>
-        <Typography tabIndex={0} variant="body2" sx={{ alignSelf: "center" }}>{row.last_analysis_at ? formatTimestamp(row.last_analysis_at) : "Non registrata"}</Typography>
-      </Tooltip> },
+    timestampColumn("price_as_of", "Ultimo aggiornamento prezzo", "Data e ora dell'ultimo aggiornamento del prezzo dello strumento."),
+    timestampColumn("last_analysis_at", "Ultimo calcolo indicatori", "Ultima valutazione tecnica completata dello strumento, anche senza generare un segnale. Non indica l'ultimo tentativo o l'aggiornamento dei prezzi."),
+    timestampColumn("signal_observed_at", "Ultimo segnale", "Data e ora in cui e' stato osservato il segnale tecnico mostrato."),
+    timestampColumn("last_llm_analysis_at", "Ultima analisi AI", "Data e ora dell'ultima analisi AI del segnale."),
     { field: "signal_type", headerName: "Segnale", minWidth: 165,
       renderCell: ({ row }) => <Tooltip describeChild title={`${analysisDescription("signal_type", row.signal_type)} ${analysisDescription("strategy_code", row.strategy_code)}`}><Chip tabIndex={0} size="small" color={row.signal_type === "BUY" || row.signal_type === "STRONG_BUY" ? "success" : row.signal_type === "SELL" || row.signal_type === "STRONG_SELL" ? "error" : "default"} label={`${signalTypeLabel(row.signal_type)} · ${strategyLabel(row.strategy_code)}`} /></Tooltip> },
     { field: "direction", headerName: "Direzione", width: 105,

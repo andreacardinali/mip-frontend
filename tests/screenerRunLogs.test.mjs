@@ -4,6 +4,11 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
+const marketScreenerLabelsExports = {};
+runInNewContext(ts.transpileModule(readFileSync(new URL("../src/services/marketScreenerLabels.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { exports: marketScreenerLabelsExports });
+
 const opportunityColumnsExports = {};
 runInNewContext(ts.transpileModule(readFileSync(new URL("../src/components/screenerOpportunityColumns.tsx", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
@@ -15,6 +20,7 @@ runInNewContext(ts.transpileModule(readFileSync(new URL("../src/components/scree
     if (name === "@mui/material") return Object.fromEntries(["Chip", "IconButton", "Link", "Stack", "Tooltip", "Typography"].map(component => [component, component]));
     if (name.startsWith("@mui/icons-material/")) return { __esModule: true, default: name };
     if (name === "../services/timestamps") return { formatTimestamp: value => value };
+    if (name === "../services/marketScreenerLabels") return marketScreenerLabelsExports;
     throw new Error(`Unexpected module: ${name}`);
   },
 });
@@ -177,6 +183,7 @@ function renderEntities(pending, overview, mutationState = {}) {
       if (name === "react") return { useState: initial => [initial, () => {}], useDeferredValue: value => value };
       if (name === "react-router-dom") return { Link: "Link", useParams: () => ({ id: "entity" }), useNavigate: () => destination => navigations.push(destination) };
       if (name === "../components/screenerOpportunityColumns") return opportunityColumnsExports;
+      if (name === "../services/marketScreenerLabels") return marketScreenerLabelsExports;
       if (name === "@tanstack/react-query") return {
         useIsMutating: () => pending ? 1 : 0,
         useQueryClient: () => ({ invalidateQueries: async options => { invalidations.push(options); } }),
@@ -189,6 +196,7 @@ function renderEntities(pending, overview, mutationState = {}) {
       if (name === "@mui/x-data-grid") return { DataGrid: "DataGrid" };
       if (name.startsWith("@mui/icons-material/")) return { __esModule: true, default: name };
       if (name === "../services/timestamps") return { formatTimestamp: value => value };
+      if (name === "../services/marketScreenerLabels") return marketScreenerLabelsExports;
       if (name === "../services/entities" || name === "../services/marketScreener") return {};
       throw new Error(`Unexpected module: ${name}`);
     },
@@ -408,7 +416,7 @@ test("signal chips preserve screener labels and colors for all directions and AI
   };
   for (const [signal_type, color] of [["BUY", "success"], ["STRONG_BUY", "success"], ["SELL", "error"], ["STRONG_SELL", "error"], [null, "default"]]) {
     assert.equal(cell("signal_type", { signal_type }).color, color);
-    assert.equal(cell("signal_type", { signal_type }).label, `${signal_type ?? "N/D"} · MOMENTUM`);
+    assert.equal(cell("signal_type", { signal_type }).label, `${marketScreenerLabelsExports.signalTypeLabel(signal_type)} · ${marketScreenerLabelsExports.strategyLabel("MOMENTUM")}`);
   }
   for (const [direction, color] of [["LONG", "success"], ["SHORT", "error"], ["NEUTRAL", "default"]]) {
     assert.equal(cell("direction", { direction }).color, color);
@@ -419,9 +427,9 @@ test("signal chips preserve screener labels and colors for all directions and AI
   for (const [consensus_direction, color] of [["LONG", "success"], ["SHORT", "error"], ["CONFLICT", "warning"], ["NEUTRAL", "default"]]) {
     const chip = cell("consensus_direction", { consensus_direction });
     assert.equal(chip.color, color);
-    assert.equal(chip.label, `${consensus_direction} · 2`);
+    assert.equal(chip.label, `${marketScreenerLabelsExports.consensusLabel(consensus_direction)} · 2`);
   }
-  for (const [verdict, color, label] of [["CONFIRM", "success", "Confermato"], ["REVIEW", "warning", "Da valutare"], ["REJECT", "error", "Non confermato"], [null, "default", "Non disponibile"]]) {
+  for (const [verdict, color, label] of [["CONFIRM", "success", "Confermato dall'AI"], ["REVIEW", "warning", "Da approfondire"], ["REJECT", "error", "Non confermato dall'AI"], [null, "default", "Non disponibile"]]) {
     assert.equal(cell("verdict", { verdict }).color, color);
     assert.equal(cell("verdict", { verdict }).label, label);
   }
@@ -504,6 +512,7 @@ function renderScreener(destination, detail, queryStates = {}) {
       };
       if (name === "react-router-dom") return { useSearchParams: () => [new URL(destination, "http://localhost").searchParams, () => {}] };
       if (name === "../components/screenerOpportunityColumns") return opportunityColumnsExports;
+      if (name === "../services/marketScreenerLabels") return marketScreenerLabelsExports;
       if (name === "@tanstack/react-query") return {
         useIsMutating: () => 0, useQueryClient: () => ({}), useMutation: () => ({}),
         useQuery: options => { queries.push(options); return queryStates[options.queryKey[0]] ?? { data: options.queryKey[0] === "market-screener-detail" ? detail : options.queryKey[0] === "context-instruments" ? [] : undefined }; },
@@ -615,17 +624,27 @@ test("screener shows progress instead of a completed run while queued or running
   }
 });
 
-test("screener row timestamp explains completed instrument evaluation and missing records", () => {
-  const column = opportunityColumnsExports.screenerOpportunityColumns(() => {}).find(item => item.field === "last_analysis_at");
-  assert.equal(column.type, "dateTime");
-  assert.equal(column.valueFormatter(null), "Non registrata");
-  assert.ok(column.renderHeader().props.title.includes("effettivamente valutato"));
-  for (const value of [null, "2026-11-01T09:01:00Z"]) {
-    const cell = column.renderCell({ row: { last_analysis_at: value } });
-    assert.equal(cell.props.children.props.children, value ?? "Non registrata");
-    assert.equal(cell.props.describeChild, true);
-    assert.equal(cell.props.children.props.tabIndex, 0);
-    assert.ok(cell.props.title.includes(value ? "Ultima valutazione tecnica completata" : "Non indica un errore di caricamento"));
+test("screener exposes separate phase timestamps with explicit missing values", () => {
+  const columns = opportunityColumnsExports.screenerOpportunityColumns(() => {});
+  const phases = [
+    ["price_as_of", "Ultimo aggiornamento prezzo"],
+    ["last_analysis_at", "Ultimo calcolo indicatori"],
+    ["signal_observed_at", "Ultimo segnale"],
+    ["last_llm_analysis_at", "Ultima analisi AI"],
+  ];
+  for (const [field, label] of phases) {
+    const column = columns.find(item => item.field === field);
+    assert.equal(column.headerName, label);
+    assert.equal(column.type, "dateTime");
+    assert.equal(column.valueFormatter(null), "Non registrata");
+    assert.equal(column.renderHeader().props.children.props.children, label);
+    for (const value of [null, "2026-11-01T09:01:00Z"]) {
+      const cell = column.renderCell({ row: { [field]: value } });
+      assert.equal(cell.props.children.props.children, value ?? "Non registrata");
+      assert.equal(cell.props.describeChild, true);
+      assert.equal(cell.props.children.props.tabIndex, 0);
+      assert.ok(value ? cell.props.title.length > 20 : cell.props.title.includes("Nessun dato registrato"));
+    }
   }
 });
 
@@ -654,10 +673,10 @@ test("analysis dialog shares accessible descriptions for its signal and AI chips
   const { nodes } = renderScreener("/screener?opportunity=opportunity", detail);
   const tooltips = nodes.filter(node => node.type === "Tooltip" && node.props.children?.type === "Chip");
   for (const [label, field, value] of [
-    ["SWING_EXIT", "strategy_code", "SWING_EXIT"], ["SELL", "signal_type", "SELL"],
-    ["Trend: STRONG_BULLISH", "signal_trend", "STRONG_BULLISH"],
-    ["Timeframe: 1D", "signal_timeframe", "1D"], ["Confidence: 80.0%", "signal_confidence", 0.8],
-    ["Score AI: –", "llm_score", null], ["Nessun match", "portfolio_match_type", "NO_MATCH"],
+    ["Uscita da swing rialzista", "strategy_code", "SWING_EXIT"], ["Vendita", "signal_type", "SELL"],
+    ["Trend: Fortemente rialzista", "signal_trend", "STRONG_BULLISH"],
+    ["Timeframe: 1D", "signal_timeframe", "1D"], ["Affidabilità: 80.0%", "signal_confidence", 0.8],
+    ["Punteggio AI: –", "llm_score", null], ["Nessun match", "portfolio_match_type", "NO_MATCH"],
   ]) {
     const tooltip = tooltips.find(node => node.props.children.props.label === label);
     assert.ok(tooltip, label);
