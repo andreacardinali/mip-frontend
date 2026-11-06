@@ -71,6 +71,47 @@ export default function PipelineDiagnosticsPage() {
             Snapshot generato {formatTimestamp(data.generated_at)}. I dati mostrati non includono credenziali o payload delle notifiche.
           </Typography>
 
+          <Box component="section" aria-labelledby="price-refresh-heading">
+            <Typography id="price-refresh-heading" variant="h6" sx={{ mb: 1.5 }}>Coda aggiornamento prezzi</Typography>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              I tentativi indicati sono claim del dispatcher registrati nei record correnti, non il numero totale di richieste HTTP o retry interni dei provider. I 404 sono conteggiati quando compaiono nell&apos;ultimo errore salvato.
+            </Alert>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead><TableRow><TableCell>Stato</TableCell><TableCell align="right">Job</TableCell><TableCell align="right">Tentativi dispatcher</TableCell><TableCell align="right">Errori HTTP 404</TableCell><TableCell>Ultimo aggiornamento</TableCell></TableRow></TableHead>
+                <TableBody>
+                  {data.price_refresh.by_status.map((row) => (
+                    <TableRow key={row.status}><TableCell><StatusChip status={row.status} /></TableCell><TableCell align="right">{row.job_count}</TableCell><TableCell align="right">{row.dispatcher_attempts}</TableCell><TableCell align="right">{row.http_404_count}</TableCell><TableCell>{formatTimestamp(row.latest_updated_at)}</TableCell></TableRow>
+                  ))}
+                  {data.price_refresh.by_status.length === 0 && <TableRow><TableCell colSpan={5}>Nessun job nella coda.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>Job recenti</Typography>
+            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 360 }}>
+              <Table size="small" stickyHeader>
+                <TableHead><TableRow><TableCell>Aggiornato</TableCell><TableCell>Simbolo</TableCell><TableCell>Fonte</TableCell><TableCell>Stato</TableCell><TableCell align="right">Tentativi</TableCell><TableCell>Prossimo tentativo</TableCell><TableCell>Ultimo errore</TableCell></TableRow></TableHead>
+                <TableBody>
+                  {data.price_refresh.recent_jobs.map((job) => (
+                    <TableRow key={job.job_id}>
+                      <TableCell>{formatTimestamp(job.updated_at)}</TableCell><TableCell>{job.symbol}</TableCell><TableCell>{job.data_source}</TableCell>
+                      <TableCell><StatusChip status={job.status} /></TableCell><TableCell align="right">{job.attempt_count} / {job.max_attempts}</TableCell>
+                      <TableCell>
+                        {job.status.toUpperCase() === "PROCESSING"
+                          ? "In corso"
+                          : ["PENDING", "RETRY"].includes(job.status.toUpperCase())
+                            ? formatTimestamp(job.next_attempt_at)
+                            : "-"}
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 420, overflowWrap: "anywhere" }}>{job.last_error ?? "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                  {data.price_refresh.recent_jobs.length === 0 && <TableRow><TableCell colSpan={7}>Nessun job registrato.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+
           <Box component="section" aria-labelledby="ingestion-heading">
             <Typography id="ingestion-heading" variant="h6" sx={{ mb: 1.5 }}>Ingresso dati</Typography>
             <TableContainer component={Paper} variant="outlined">

@@ -39,6 +39,28 @@ export interface PipelineDiagnostics {
       result: Record<string, unknown> | null;
     }[];
   };
+  price_refresh: {
+    by_status: {
+      status: string;
+      job_count: number;
+      dispatcher_attempts: number;
+      http_404_count: number;
+      latest_updated_at: string | null;
+    }[];
+    recent_jobs: {
+      job_id: string;
+      symbol: string;
+      data_source: string;
+      status: string;
+      attempt_count: number;
+      max_attempts: number;
+      next_attempt_at: string | null;
+      last_error: string | null;
+      created_at: string;
+      updated_at: string;
+      completed_at: string | null;
+    }[];
+  };
   notifications: {
     by_status_channel: {
       status: string;
