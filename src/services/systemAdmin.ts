@@ -60,6 +60,19 @@ export interface PipelineDiagnostics {
       updated_at: string;
       completed_at: string | null;
     }[];
+    outdated_instruments: {
+      max_age_seconds: number;
+      truncated: boolean;
+      instruments: {
+        symbol: string;
+        exchange: string;
+        data_source: string;
+        last_price: number | string | null;
+        price_as_of: string | null;
+        issue: "MISSING_PRICE" | "MISSING_TIMESTAMP" | "NOT_UPDATED_DURING_OPEN_MARKET";
+        market_status: "OPEN" | "CLOSED" | "UNKNOWN";
+      }[];
+    };
   };
   notifications: {
     by_status_channel: {

@@ -16,7 +16,9 @@ import {
   Typography,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
+import { usePriceRefresh } from "../contexts/PriceRefreshProvider";
 import { getPipelineDiagnostics } from "../services/systemAdmin";
 import { formatTimestamp } from "../services/timestamps";
 
@@ -33,6 +35,8 @@ function StatusChip({ status }: { status: string }) {
 }
 
 export default function PipelineDiagnosticsPage() {
+  const { refreshNow } = usePriceRefresh();
+  const [refreshingPrices, setRefreshingPrices] = useState(false);
   const diagnostics = useQuery({
     queryKey: ["pipeline-diagnostics"],
     queryFn: () => getPipelineDiagnostics(),
@@ -73,6 +77,54 @@ export default function PipelineDiagnosticsPage() {
 
           <Box component="section" aria-labelledby="price-refresh-heading">
             <Typography id="price-refresh-heading" variant="h6" sx={{ mb: 1.5 }}>Coda aggiornamento prezzi</Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ alignItems: { sm: "center" }, mb: 1.5 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+                Vecchi oltre {data.price_refresh.outdated_instruments.max_age_seconds} secondi solo a mercato aperto. Prezzi mancanti sempre inclusi.
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={refreshingPrices ? <CircularProgress size={16} /> : <RefreshIcon />}
+                disabled={refreshingPrices}
+                onClick={async () => {
+                  setRefreshingPrices(true);
+                  try {
+                    await refreshNow();
+                    await diagnostics.refetch();
+                  } finally {
+                    setRefreshingPrices(false);
+                  }
+                }}
+              >
+                Avvia refresh globale
+              </Button>
+            </Stack>
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead><TableRow><TableCell>Problema</TableCell><TableCell>Simbolo</TableCell><TableCell>Mercato</TableCell><TableCell>Fonte</TableCell><TableCell align="right">Prezzo</TableCell><TableCell>Aggiornato</TableCell></TableRow></TableHead>
+                <TableBody>
+                  {data.price_refresh.outdated_instruments.instruments.map((instrument) => (
+                    <TableRow key={`${instrument.exchange}-${instrument.symbol}-${instrument.data_source}`}>
+                      <TableCell>
+                        {instrument.issue === "MISSING_PRICE"
+                          ? "Prezzo mancante"
+                          : instrument.issue === "MISSING_TIMESTAMP"
+                            ? "Timestamp mancante"
+                            : "Prezzo non aggiornato a mercato aperto"}
+                      </TableCell>
+                      <TableCell>{instrument.symbol}</TableCell>
+                      <TableCell>{instrument.exchange} <StatusChip status={instrument.market_status} /></TableCell>
+                      <TableCell>{instrument.data_source}</TableCell>
+                      <TableCell align="right">{instrument.last_price ?? "-"}</TableCell>
+                      <TableCell>{formatTimestamp(instrument.price_as_of)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {data.price_refresh.outdated_instruments.instruments.length === 0 && <TableRow><TableCell colSpan={6}>Nessun prezzo mancante o vecchio.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {data.price_refresh.outdated_instruments.truncated && (
+              <Alert severity="warning" sx={{ mb: 2 }}>Elenco limitato ai primi {data.price_refresh.outdated_instruments.instruments.length} strumenti.</Alert>
+            )}
             <Alert severity="info" sx={{ mb: 2 }}>
               I tentativi indicati sono claim del dispatcher registrati nei record correnti, non il numero totale di richieste HTTP o retry interni dei provider. I 404 sono conteggiati quando compaiono nell&apos;ultimo errore salvato.
             </Alert>
